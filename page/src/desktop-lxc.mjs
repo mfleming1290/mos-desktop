@@ -10,9 +10,9 @@ export default defineComponent({
       const action = confirmation.value;
       if (!action || operating.value || !props.active) return;
       confirmation.value = null; operating.value = true;
-      operationStatus.value = `Requesting ${action} for testit…`;
+      operationStatus.value = `Requesting ${action} for mos-desktop…`;
       try {
-        const result = await props.host.controlTestContainer(action);
+        const result = await props.host.controlDesktopContainer(action);
         if (live) operationStatus.value = result.message;
       } catch {if (live) operationStatus.value = 'Operation outcome unknown; check MOS status.';}
       finally {operating.value = false; if (live && props.active) refresh();}
@@ -35,17 +35,17 @@ export default defineComponent({
       observedAt.value && h('p', `Last observed: ${new Date(observedAt.value).toLocaleTimeString()}. Refreshes every 30 seconds while visible.`),
       h('button', {disabled: !props.active, onClick: refresh}, 'Refresh status'),
       h('a', {href: '/lxc'}, 'Open MOS LXC administration'),
-      h('p', 'Closing this window does not stop containers. Controls are restricted to the disposable testit container.'),
+      h('p', 'Closing this window does not stop containers. Controls are restricted to the mos-desktop backend.'),
       operationStatus.value && h('p', {role: 'status'}, operationStatus.value),
-      confirmation.value && h('div', [h('p', `${confirmation.value === 'stop' ? 'Stop' : 'Start'} testit? Stopping disconnects its sessions.`),
-        h('button', {disabled: operating.value, onClick: control}, 'Confirm testit operation'),
+      confirmation.value && h('div', [h('p', `${confirmation.value === 'stop' ? 'Stop' : 'Start'} mos-desktop? Stopping ends its running applications and terminal sessions.`),
+        h('button', {disabled: operating.value, onClick: control}, 'Confirm mos-desktop operation'),
         h('button', {onClick: () => {confirmation.value = null;}}, 'Cancel')]),
       observedAt.value && !items.value.length && h('p', 'No LXC containers found.'),
       h('ul', items.value.map(item => h('li', {key: item.name}, [
         `${item.name} — ${item.state}; unprivileged: ${item.unprivileged === null ? 'unknown' : item.unprivileged ? 'yes' : 'no'}`,
-        item.name === 'testit' && ['running', 'stopped'].includes(item.state) && typeof props.host.controlTestContainer === 'function'
+        item.name === 'mos-desktop' && ['running', 'stopped'].includes(item.state) && typeof props.host.controlDesktopContainer === 'function'
           && h('button', {disabled: operating.value || !props.active,
-            onClick: () => {confirmation.value = item.state === 'running' ? 'stop' : 'start';}}, item.state === 'running' ? 'Stop testit…' : 'Start testit…'),
+            onClick: () => {confirmation.value = item.state === 'running' ? 'stop' : 'start';}}, item.state === 'running' ? 'Stop mos-desktop…' : 'Start mos-desktop…'),
       ]))),
     ]);
   },

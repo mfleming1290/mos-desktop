@@ -1,11 +1,11 @@
-// MOS owns authorization. This adapter exposes one fixed read, never arbitrary URLs or commands.
+// MOS owns authorization. Fixed container reads and backend controls only, never arbitrary URLs or commands.
 /** @typedef {{name:string,state:string,unprivileged:boolean|null}} LxcObservation */
 export function createMosReadHost({storage, fetcher = globalThis.fetch} = {}) {
   const credential = () => {try {return storage?.getItem('authToken') || '';} catch {return '';}};
   let pending = false;
   return Object.freeze({
-    // Bounded M2 canary: no arbitrary container, operation, URL or shell input.
-    async controlTestContainer(action) {
+    // One approved backend: no arbitrary container, operation, URL or shell input.
+    async controlDesktopContainer(action) {
       if (!['start', 'stop'].includes(action)) return {code: 'denied', message: 'Unsupported operation.'};
       if (pending) return {code: 'busy', message: 'A container operation is already pending.'};
       const token = credential();
@@ -14,7 +14,7 @@ export function createMosReadHost({storage, fetcher = globalThis.fetch} = {}) {
       const abort = new AbortController();
       const timeout = setTimeout(() => abort.abort(), 45000);
       try {
-        const response = await fetcher(`/api/v1/lxc/containers/testit/${action}`, {method: 'POST',
+        const response = await fetcher(`/api/v1/lxc/containers/mos-desktop/${action}`, {method: 'POST',
           credentials: 'same-origin', redirect: 'error', cache: 'no-store', signal: abort.signal,
           headers: {Authorization: `Bearer ${token}`}});
         if (token !== credential()) return {code: 'unknown', message: 'Session changed. Check MOS status before another operation.'};

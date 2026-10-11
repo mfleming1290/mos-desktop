@@ -14,7 +14,7 @@ export const registrations = Object.freeze([
     component: Clock, defaults: defaultClockConfig, validate: validateClockConfig},
   {definition: {id: 'about', display_name: 'About Desktop', multiple_instances: false,
     preferred_size: {width: 380, height: 260}, minimum_size: {width: 280, height: 180}, capabilities},
-    component: defineComponent({setup: () => () => h('p', 'MOS Desktop uses the Battlemoon WASM runtime. Closing a view does not stop remote applications. MOS LXC status is read-only; container control and native application launch are not enabled.')}),
+    component: defineComponent({setup: () => () => h('p', 'MOS Desktop uses the Battlemoon WASM runtime. Closing a view does not stop remote applications. Confirmed container controls are limited to the mos-desktop backend. Personal file, terminal and native application services are not available yet.')}),
     defaults: {}, validate: () => ({code: 'success', value: {}})},
 ]);
 

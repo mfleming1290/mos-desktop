@@ -42,6 +42,34 @@ test('built LXC panel reads once, pauses hidden work, rejects late data and clos
     assert.equal(document.querySelectorAll('article').length, 0); assert.doesNotMatch(document.body.textContent, /late-lxc/);
   } finally {app.unmount(); storage.removeItem('authToken'); if (before) Object.defineProperty(globalThis, 'localStorage', before); else delete globalThis.localStorage;}
 });
+test('built backend controls require confirmation and exclude old and unrelated container names', async () => {
+  const before = Object.getOwnPropertyDescriptor(globalThis, 'localStorage');
+  const storage = dom.window.localStorage;
+  Object.defineProperty(globalThis, 'localStorage', {configurable: true, value: storage});
+  storage.setItem('authToken', 'fixture-admin');
+  const mutations = [];
+  globalThis.fetch = async (url, options) => {
+    if (String(url) === '/api/v1/auth/profile') return {ok: true, json: async () => ({id: 'admin'})};
+    if (options.method === 'POST') {mutations.push(String(url)); return {ok: true};}
+    if (String(url).includes('/lxc/')) return {ok: true, json: async () => ['mos-desktop', 'testit', 'code'].map(name => ({name, state: 'running', unprivileged: true}))};
+    return {ok: true, arrayBuffer: async () => wasm};
+  };
+  const app = Vue.createApp(Page);
+  const button = label => [...document.querySelectorAll('button')].find(b => b.textContent === label);
+  try {
+    app.mount('#app'); await flush(); button('New MOS LXC Status').click(); await flush();
+    assert(!button('Stop testit…')); assert(!button('Stop code…'));
+    button('Stop mos-desktop…').click(); await flush(); assert.equal(mutations.length, 0);
+    assert.match(document.body.textContent, /Stopping ends its running applications/);
+    button('Cancel').click(); await flush(); assert.equal(mutations.length, 0);
+    button('Stop mos-desktop…').click(); await flush(); button('Confirm mos-desktop operation').click(); await flush();
+    assert.deepEqual(mutations, ['/api/v1/lxc/containers/mos-desktop/stop']);
+    document.querySelector('[aria-label="Close"]').click(); await flush(); assert.equal(mutations.length, 1);
+  } finally {
+    app.unmount(); storage.removeItem('authToken');
+    if (before) Object.defineProperty(globalThis, 'localStorage', before); else delete globalThis.localStorage;
+  }
+});
 test('HTTP-compatible crypto supports startup and distinct app identities without randomUUID', async () => {
   const before = Object.getOwnPropertyDescriptor(globalThis, 'crypto');
   const secure = globalThis.crypto;
