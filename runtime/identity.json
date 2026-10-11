@@ -1,0 +1,11 @@
+{
+  "sdkArchiveSha256": "61a2a89a751a7fee7b7734b8077ac2bd4042ef1307871251214feb68d5a6229b",
+  "sourceRevision": "704ae0508eb2e26314e8066c9e293b32f9c39339",
+  "runtimeVersion": "0.1.0",
+  "compiler": "rustc 1.97.1 (8bab26f4f 2026-07-14)",
+  "buildTransform": "exclude-test-only-FixtureEnvelope-v1",
+  "assets": {
+    "runtime.mjs": "278d413f2497da7f0ea86ce7a4b00d76a95c479df2242541e4fe79f63a4af6d1",
+    "runtime.wasm": "77da16b7690b39141a742abab8dcc4e66769bf93fb8501aab21a63810a72121a"
+  }
+}

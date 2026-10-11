@@ -1,0 +1,72 @@
+name: Build and Release
+on:
+  push:
+    branches: [main]
+    tags: ['[0-9]*']
+  pull_request:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Existing numeric tag
+        required: true
+permissions:
+  contents: read
+concurrency:
+  group: mos-desktop-${{ inputs.version || github.ref }}
+  cancel-in-progress: false
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    env:
+      RELEASE_TAG: ${{ inputs.version || (startsWith(github.ref, 'refs/tags/') && github.ref_name) || '' }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ inputs.version && format('refs/tags/{0}', inputs.version) || github.sha }}
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
+        with:
+          node-version: '24.21.0'
+          package-manager-cache: false
+      - run: node scripts/check-release.mjs
+      - run: npm ci --ignore-scripts --no-audit --no-fund
+        working-directory: page
+      - name: Build and verify from approved compiled inputs
+        run: |
+          node scripts/stage-runtime.mjs
+          cd page
+          npm run build
+          node --test ../tests/public-runtime.test.mjs
+          npm run check:built
+          npm run package:local
+          cd ..
+          python3 scripts/make-source.py
+          node scripts/check-release.mjs --artifacts
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+        with:
+          name: mos-desktop
+          path: artifacts/*.*
+          if-no-files-found: error
+          retention-days: 14
+  release:
+    if: github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/tags/')
+    needs: build
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8
+        with:
+          name: mos-desktop
+          path: artifacts
+      - name: Publish complete release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          RELEASE_TAG: ${{ inputs.version || github.ref_name }}
+        run: |
+          test "$RELEASE_TAG" = '0.1.0'
+          gh release create "$RELEASE_TAG" artifacts/*.deb artifacts/*.md5 artifacts/*.sha256 artifacts/*-source.zip --verify-tag --draft --title "MOS Desktop $RELEASE_TAG" --notes "M0 runtime canary only. Approved compiled Battlemoon runtime; host Vue federation, no backend or application launch authority. Actual MOS loading remains a separate acceptance gate."
+          gh release edit "$RELEASE_TAG" --draft=false --latest

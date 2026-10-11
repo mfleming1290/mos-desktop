@@ -1,0 +1,5 @@
+* text=auto eol=lf
+*.wasm binary
+*.deb binary
+*.zip binary
+runtime/THIRD-PARTY-NOTICES.txt -whitespace
