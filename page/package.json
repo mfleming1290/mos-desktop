@@ -1,21 +1,26 @@
 {
   "name": "mos-desktop-page",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "private": true,
+  "mosDesktopReleaseReady": true,
   "type": "module",
   "scripts": {
     "prepare:runtime": "node ../scripts/stage-runtime.mjs",
-    "test": "node --test ../tests/public-runtime.test.mjs",
+    "test": "node --test ../tests/public-runtime.test.mjs ../tests/desktop-*.test.mjs",
     "build": "vite build",
     "check:built": "node ../scripts/check-built.mjs",
     "package:local": "node ../scripts/package-local.mjs"
   },
-  "dependencies": {"vue": "3.5.43"},
+  "dependencies": {
+    "@battlemoon/clock": "file:../.cache/components/battlemoon-clock-0.1.1.tgz",
+    "@battlemoon/component-contracts": "file:../.cache/components/battlemoon-component-contracts-0.1.1.tgz",
+    "vue": "3.5.43"
+  },
   "devDependencies": {
     "@originjs/vite-plugin-federation": "1.3.5",
     "@vitejs/plugin-vue": "6.0.3",
-    "vite": "7.3.7",
     "esbuild": "0.25.12",
-    "jsdom": "26.1.0"
+    "jsdom": "26.1.0",
+    "vite": "7.3.7"
   }
 }

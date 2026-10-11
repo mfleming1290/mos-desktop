@@ -7,12 +7,23 @@ const files = readdirSync(directory);
 const manifest = JSON.parse(readFileSync(new URL('manifest.json',directory)));
 assert.deepEqual(manifest, config);
 assert(files.includes('remoteEntry.js'));
-assert(files.every(file => /^(manifest\.json|remoteEntry\.js|runtime-[\w-]+\.wasm|__federation_(expose_Plugin|fn_import)-[\w-]+\.js)$/.test(file)), 'Unexpected distribution asset');
+assert(files.every(file => /^(manifest\.json|remoteEntry\.js|runtime-[\w-]+\.wasm|__federation_(expose_Plugin|fn_import)-[\w-]+\.js|__federation_expose_Plugin-[\w-]+\.css)$/.test(file)), 'Unexpected distribution asset');
 assert.equal(files.filter(file => file.endsWith('.wasm')).length, 1);
 assert(!files.some(file => /__federation_shared_vue/.test(file)), 'Host Vue must not be bundled');
 const identity = JSON.parse(readFileSync(new URL('../page/src/generated/identity.json',import.meta.url)));
 assert.deepEqual(Object.keys(identity.assets).sort(), ['runtime.mjs','runtime.wasm']);
 const hash = bytes => createHash('sha256').update(bytes).digest('hex');
+const lock = JSON.parse(readFileSync(new URL('../page/package-lock.json',import.meta.url)));
+for (const [name, filename, digest] of [
+  ['clock','battlemoon-clock-0.1.1.tgz','fc21c9289ab21af48277b002f1c1dd5965f1dff6fd750eb28f573aa9966fe889'],
+  ['component-contracts','battlemoon-component-contracts-0.1.1.tgz','f258196f0a2571db195c32057ef2a60f487a9d247a2eb3f8960869d81d5b8a7d'],
+]) {
+  const bytes = readFileSync(new URL(`../.cache/components/${filename}`,import.meta.url));
+  assert.equal(hash(bytes),digest);
+  const entry = lock.packages[`node_modules/@battlemoon/${name}`];
+  assert.equal(entry.version,'0.1.1');
+  assert.equal(entry.integrity,`sha512-${createHash('sha512').update(bytes).digest('base64')}`);
+}
 for (const [file, expected] of Object.entries(identity.assets)) {
   assert.equal(hash(readFileSync(new URL(`../page/src/generated/${file}`,import.meta.url))), expected);
 }

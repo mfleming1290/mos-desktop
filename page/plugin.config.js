@@ -1,8 +1,8 @@
 export default {
   name: 'desktop',
   displayName: 'MOS Desktop',
-  description: 'Battlemoon runtime integration canary (M0)',
-  version: '0.1.0',
+  description: 'Battlemoon desktop shell with Clock windows, taskbar and scoped browser layouts (M1)',
+  version: '0.1.1',
   icon: 'mdi-monitor-dashboard',
   author: 'mfleming1290',
   homepage: 'https://github.com/mfleming1290/mos-desktop',

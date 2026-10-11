@@ -8,7 +8,7 @@ root = Path(__file__).resolve().parents[1]
 version = json.loads((root / 'page/package.json').read_text())['version']
 files = subprocess.check_output(['git', 'ls-files', '-z'], cwd=root).decode().split('\0')
 files = [f for f in files if f]
-checksums = sorted((root / 'artifacts').glob('*.deb.*'))
+checksums = sorted((root / 'artifacts').glob(f'desktop_{version}-1+mos-plugin_all.deb.*'))
 out = root / 'artifacts' / f'mos-desktop-{version}-source.zip'
 with zipfile.ZipFile(out, 'x', zipfile.ZIP_DEFLATED, compresslevel=9) as archive:
     for filename in files:

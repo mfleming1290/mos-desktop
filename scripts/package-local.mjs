@@ -6,6 +6,8 @@ import {fileURLToPath} from 'node:url';
 import path from 'node:path';
 import config from '../page/plugin.config.js';
 
+const pkg = JSON.parse(readFileSync(new URL('../page/package.json',import.meta.url)));
+assert.notEqual(pkg.mosDesktopReleaseReady, false, 'M1 development is not approved for packaging as immutable 0.1.0');
 assert.equal(process.platform, 'linux', 'Package on the authorized Linux build host');
 const root = fileURLToPath(new URL('../', import.meta.url));
 for (const script of ['stage-runtime.mjs','check-built.mjs']) {
@@ -28,7 +30,7 @@ copyFileSync(path.join(root,'page/src/generated/identity.json'),path.join(docs,'
 for (const file of readdirSync(path.join(root, 'page/dist/desktop'))) {
   copyFileSync(path.join(root, 'page/dist/desktop', file), path.join(web, file));
 }
-writeFileSync(path.join(staging, 'DEBIAN/control'), `Package: mos-desktop-plugin\nVersion: ${config.version}-1+mos-plugin\nArchitecture: all\nMaintainer: mfleming1290\nDescription: MOS Desktop M0 runtime canary, local review candidate\n`);
+writeFileSync(path.join(staging, 'DEBIAN/control'), `Package: mos-desktop-plugin\nVersion: ${config.version}-1+mos-plugin\nArchitecture: all\nMaintainer: mfleming1290\nDescription: MOS Desktop M1 browser shell with shared Clock windows\n`);
 function normalize(directory) {
   for (const entry of readdirSync(directory,{withFileTypes:true})) {
     const file = path.join(directory,entry.name);
@@ -45,4 +47,4 @@ writeFileSync(path.join(output, filename + '.sha256'), `${sha256}  ${filename}\n
 const md5 = createHash('md5').update(readFileSync(path.join(output,filename))).digest('hex');
 writeFileSync(path.join(output, filename + '.md5'), `${md5}  ${filename}\n`);
 console.log(JSON.stringify({status:'PASS', filename, sha256, architecture:'all', published:false,
-  boundary:'Local compiled-only candidate with notices/provenance; publication unauthorized and actual MOS acceptance open'}));
+  boundary:'Compiled-only package with notices/provenance; actual MOS M1 acceptance open'}));

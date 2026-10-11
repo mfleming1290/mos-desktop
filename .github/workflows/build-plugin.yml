@@ -30,6 +30,7 @@ jobs:
           node-version: '24.21.0'
           package-manager-cache: false
       - run: node scripts/check-release.mjs
+      - run: node scripts/prepare-components.mjs
       - run: npm ci --ignore-scripts --no-audit --no-fund
         working-directory: page
       - name: Build and verify from approved compiled inputs
@@ -37,7 +38,7 @@ jobs:
           node scripts/stage-runtime.mjs
           cd page
           npm run build
-          node --test ../tests/public-runtime.test.mjs
+          npm test
           npm run check:built
           npm run package:local
           cd ..
@@ -67,6 +68,6 @@ jobs:
           GH_REPO: ${{ github.repository }}
           RELEASE_TAG: ${{ inputs.version || github.ref_name }}
         run: |
-          test "$RELEASE_TAG" = '0.1.0'
-          gh release create "$RELEASE_TAG" artifacts/*.deb artifacts/*.md5 artifacts/*.sha256 artifacts/*-source.zip --verify-tag --draft --title "MOS Desktop $RELEASE_TAG" --notes "M0 runtime canary only. Approved compiled Battlemoon runtime; host Vue federation, no backend or application launch authority. Actual MOS loading remains a separate acceptance gate."
+          [[ "$RELEASE_TAG" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]
+          gh release create "$RELEASE_TAG" artifacts/*.deb artifacts/*.md5 artifacts/*.sha256 artifacts/*-source.zip --verify-tag --draft --title "MOS Desktop $RELEASE_TAG" --notes "M1 desktop shell: independent shared Clock windows and About, launcher/taskbar, move/resize/focus/minimize/maximize/close, scoped browser layout recovery and lifecycle cleanup. Compiled Battlemoon runtime and shared Clock/contracts inputs are unchanged. Host Vue only; no backend, native-app launch or standalone authentication. Actual MOS M1 acceptance remains separate. Update through MOS Hub to preserve configuration; 0.1.0 remains available for rollback."
           gh release edit "$RELEASE_TAG" --draft=false --latest
