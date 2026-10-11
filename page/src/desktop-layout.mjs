@@ -34,10 +34,13 @@ export function decodeLayout(text, scope, registrations) {
 export function createLayoutStorage({scope, storage, locks, canPersist = () => true, onStatus = () => {}}) {
   let writer = false, disposed = false, release, pending, timer, saved = 0;
   const key = `mos-desktop:layout:1:${scope}`;
-  const available = typeof scope === 'string' && scope.length > 0 && scope.length <= 200 && storage && locks;
+  const unavailable = !(typeof scope === 'string' && scope.length > 0 && scope.length <= 200)
+    ? 'MOS profile verification unavailable; sign in to MOS and reload.'
+    : !storage ? 'browser storage unavailable; allow site storage and reload.'
+    : typeof locks?.request !== 'function' ? 'browser locking unavailable; open MOS through HTTPS or localhost to enable autosave.' : '';
   return {
     async acquire() {
-      if (!available) {onStatus('Temporary layout: verified host scope and Web Locks are required.'); return false;}
+      if (unavailable) {onStatus(`Temporary layout: ${unavailable}`); return false;}
       return new Promise(resolve => {
         locks.request(key, {mode: 'exclusive', ifAvailable: true}, async lock => {
           if (!lock || disposed) {onStatus('Temporary layout: another tab owns persistence.'); resolve(false); return;}

@@ -26,7 +26,7 @@ test('HTTP-compatible crypto supports startup and distinct app identities withou
     assert.equal(ids.length, 2); assert.equal(new Set(ids).size, 2);
   } finally {app.unmount(); Object.defineProperty(globalThis, 'crypto', before);}
 });
-test('wide workspace restores corner bounds before resize notification and confirms each manual save', async () => {
+test('wide workspace restores corners and autosaves completed drags without a save button', async () => {
   const proto = dom.window.HTMLElement.prototype;
   const width = Object.getOwnPropertyDescriptor(proto, 'clientWidth'), height = Object.getOwnPropertyDescriptor(proto, 'clientHeight');
   const nav = Object.getOwnPropertyDescriptor(globalThis, 'navigator');
@@ -43,14 +43,54 @@ test('wide workspace restores corner bounds before resize notification and confi
     app.mount('#app'); await flush();
     assert.equal(document.querySelector('article').style.left, '1550px');
     assert.equal(document.querySelector('article').style.top, '580px');
-    const save = [...document.querySelectorAll('button')].find(b => b.textContent === 'Save layout');
-    assert(save); save.click(); await flush(); assert.match(document.body.textContent, /Layout saved \(#1\)/);
-    save.click(); await flush(); assert.match(document.body.textContent, /Layout saved \(#2\)/);
+    assert(![...document.querySelectorAll('button')].some(b => b.textContent === 'Save layout'));
+    const header = document.querySelector('article header'); let captured = false;
+    header.setPointerCapture = () => {captured = true;}; header.hasPointerCapture = () => captured;
+    header.releasePointerCapture = () => {captured = false;};
+    const pointer = (type, x) => {const event = new dom.window.MouseEvent(type, {button: 0, clientX: x, clientY: 10, bubbles: true, cancelable: true}); Object.defineProperty(event, 'pointerId', {value: 1}); header.dispatchEvent(event);};
+    pointer('pointerdown', 10); await flush(); pointer('pointermove', 50); await Vue.nextTick();
     assert.equal(JSON.parse(dom.window.localStorage.getItem(key)).windows[0].bounds.x, 1550);
+    pointer('pointerup', 50); await flush();
+    assert.match(document.body.textContent, /Layout saved \(#/);
+    assert.equal(JSON.parse(dom.window.localStorage.getItem(key)).windows[0].bounds.x, 1590);
+    pointer('pointerdown', 10); pointer('pointermove', 30); await Vue.nextTick();
+    header.dispatchEvent(new dom.window.KeyboardEvent('keydown', {key: 'Escape', bubbles: true})); await flush();
+    assert.equal(JSON.parse(dom.window.localStorage.getItem(key)).windows[0].bounds.x, 1590);
+    const handle = document.querySelector('.resize-handle');
+    handle.setPointerCapture = header.setPointerCapture; handle.hasPointerCapture = header.hasPointerCapture; handle.releasePointerCapture = header.releasePointerCapture;
+    for (const [type, x] of [['pointerdown', 10], ['pointermove', 50], ['pointerup', 50]]) {
+      const event = new dom.window.MouseEvent(type, {button: 0, clientX: x, clientY: 10, bubbles: true, cancelable: true});
+      Object.defineProperty(event, 'pointerId', {value: 2}); handle.dispatchEvent(event);
+    }
+    await flush(); assert.equal(JSON.parse(dom.window.localStorage.getItem(key)).windows[0].bounds.width, 380);
   } finally {
     app.unmount(); dom.window.localStorage.removeItem(key);
     if (width) Object.defineProperty(proto, 'clientWidth', width); else delete proto.clientWidth;
     if (height) Object.defineProperty(proto, 'clientHeight', height); else delete proto.clientHeight;
+    if (nav) Object.defineProperty(globalThis, 'navigator', nav); else delete globalThis.navigator;
+  }
+});
+test('failed autosave preserves the record and exposes a working retry only after failure', async () => {
+  const nav = Object.getOwnPropertyDescriptor(globalThis, 'navigator');
+  Object.defineProperty(globalThis, 'navigator', {configurable: true, value: {locks: {request: (_key, _options, cb) => cb({})}}});
+  const proto = dom.window.Storage.prototype, original = proto.setItem;
+  const key = 'mos-desktop:layout:1:retry-test'; let denied = true;
+  proto.setItem = function(k, v) {if (k === key && denied) throw Error('quota'); return original.call(this, k, v);};
+  globalThis.fetch = async () => ({ok: true, arrayBuffer: async () => wasm});
+  const app = Vue.createApp(Page, {verifiedStorageScope: 'retry-test'});
+  try {
+    app.mount('#app'); await flush();
+    assert(![...document.querySelectorAll('button')].some(b => b.textContent === 'Retry autosave'));
+    [...document.querySelectorAll('nav button')].find(b => b.textContent === 'New Clock').click();
+    await new Promise(resolve => setTimeout(resolve, 300)); await Vue.nextTick();
+    assert.equal(dom.window.localStorage.getItem(key), null);
+    const retry = [...document.querySelectorAll('button')].find(b => b.textContent === 'Retry autosave'); assert(retry);
+    denied = false; retry.click(); await flush();
+    assert.equal(JSON.parse(dom.window.localStorage.getItem(key)).windows.length, 1);
+    assert.match(document.body.textContent, /Layout saved \(#1\)/);
+    assert(![...document.querySelectorAll('button')].some(b => b.textContent === 'Retry autosave'));
+  } finally {
+    app.unmount(); proto.setItem = original; dom.window.localStorage.removeItem(key);
     if (nav) Object.defineProperty(globalThis, 'navigator', nav); else delete globalThis.navigator;
   }
 });

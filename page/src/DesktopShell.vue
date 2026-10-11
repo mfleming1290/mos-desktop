@@ -51,7 +51,7 @@ async function recoverWindows() {
 function action(fn, focus = true, persist = true) {
   const next = actions.then(async () => {
     if (!live || !ready.value) return;
-    try {await fn(); await recoverWindows(); if (persist) saveLayout(); if (live && focus) await reconcileFocus();} catch (error) {report(error);}
+    try {await fn(); await recoverWindows(); if (persist) {saveLayout(); if (persist === 'immediate') persistence?.flush();} if (live && focus) await reconcileFocus();} catch (error) {report(error);}
   });
   actions = next.catch(report); return next;
 }
@@ -99,7 +99,7 @@ function endGesture(event, commit = false) {
   const current = gesture, bounds = preview.value?.bounds;
   gesture = null; preview.value = null;
   if (current.target.hasPointerCapture?.(current.pointer)) current.target.releasePointerCapture(current.pointer);
-  if (commit && bounds && live) action(() => accepted(controller.dispatch('set_bounds', {window_id: current.id, bounds})), false);
+  if (commit && bounds && live) action(() => accepted(controller.dispatch('set_bounds', {window_id: current.id, bounds})), false, 'immediate');
 }
 function keydown(event) {
   if (event.key === 'Escape') {endGesture(); return;}
@@ -144,7 +144,7 @@ onMounted(async () => {
     let storage;
     try {if (props.verifiedStorageScope) storage = window.localStorage;} catch {}
     persistence = createLayoutStorage({scope: props.verifiedStorageScope, storage, locks: globalThis.navigator?.locks, canPersist: props.canPersist,
-      onStatus: text => {if (live) layoutStatus.value = text;}});
+      onStatus: text => {if (live) {layoutStatus.value = text; canRetrySave.value = text.includes('Retry is available');}}});
     const owns = await persistence.acquire(); if (!live) {persistence.dispose();return;}
     if (owns) {
       try {
@@ -165,7 +165,7 @@ onMounted(async () => {
           if (target && shown(target)) await accepted(controller.dispatch('focus_window', id));
           layoutStatus.value = layout.skipped.length ? `Layout recovered: ${layout.skipped.join('; ')}` : 'Layout restored.';
         } else layoutStatus.value = 'Layout persistence ready.';
-        saving = true;canRetrySave.value = true;
+        saving = true;
       } catch {layoutStatus.value = 'Layout recovery failed. Original record preserved; this session will not overwrite it.';}
     }
     if (!live) return; ready.value = true;
@@ -187,7 +187,7 @@ onUnmounted(() => {
   <section class="desktop-root" aria-label="MOS Desktop" @keydown="keydown">
     <h1>MOS Desktop</h1>
     <p role="status">{{ status }}</p>
-    <p role="status">{{ layoutStatus }} <button v-if="canRetrySave" @click="action(() => { saveLayout(); persistence.flush(); }, false, false)">Save layout</button></p>
+    <p role="status">{{ layoutStatus }} <button v-if="canRetrySave" @click="action(() => { saveLayout(); persistence.flush(); }, false, false)">Retry autosave</button></p>
     <p class="help">Keyboard: Alt+Shift+Left/Right switches windows; Alt+Shift+M minimizes; Alt+Shift+X closes. Escape cancels a drag.</p>
     <div ref="surface" class="desktop-surface" tabindex="-1" aria-label="Desktop workspace">
       <article v-for="(window, index) in windows" :key="window.id" :ref="el => el ? frames.set(window.id, el) : frames.delete(window.id)"

@@ -3,6 +3,17 @@ import assert from 'node:assert/strict';
 import {decodeLayout, createLayoutStorage} from '../page/src/desktop-layout.mjs';
 const registrations=[{definition:{id:'clock',multiple_instances:true},defaults:{},validate:()=>({code:'success',value:{}})}];
 const valid={schemaVersion:1,scope:'verified',focused:'w',windows:[{key:'w',definitionId:'clock',bounds:{x:-20,y:0,width:300,height:200},visible:true,presentation:'normal',config:{}}]};
+test('temporary layouts explain the missing requirement without pretending to save', async () => {
+  for (const [options, expected] of [
+    [{}, /MOS profile verification unavailable/],
+    [{scope: 'verified', storage: {}}, /open MOS through HTTPS or localhost/],
+    [{scope: 'verified', locks: {}}, /browser storage unavailable/],
+  ]) {
+    let status;
+    const layout = createLayoutStorage({...options, onStatus: text => {status = text;}});
+    assert.equal(await layout.acquire(), false); assert.match(status, expected); layout.dispose();
+  }
+});
 test('bounded layout validates identities, scope, version, geometry and unavailable apps',()=>{
   assert.equal(decodeLayout(JSON.stringify(valid),'verified',registrations).windows.length,1);
   for(const change of [{schemaVersion:2},{scope:'other'},{windows:[{...valid.windows[0],bounds:{x:0,y:0,width:-1,height:200}}]},{windows:[valid.windows[0],valid.windows[0]]}])
