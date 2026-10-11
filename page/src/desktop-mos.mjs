@@ -47,7 +47,7 @@ export function createMosReadHost({storage, fetcher = globalThis.fetch} = {}) {
         if (!Array.isArray(data) || data.length > 256) throw Error('Invalid response');
         const names = new Set();
         const items = data.map(item => {
-          if (!item || typeof item.name !== 'string' || !/^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$/.test(item.name)
+          if (!item || typeof item.name !== 'string' || !/^[A-Za-z0-9_][A-Za-z0-9_-]{0,63}$/.test(item.name)
             || names.has(item.name) || (item.invalid_config !== true && (!['running','stopped','frozen'].includes(item.state)
             || typeof item.unprivileged !== 'boolean'))) throw Error('Invalid response');
           names.add(item.name);

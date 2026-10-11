@@ -29,6 +29,14 @@ test('MOS read adapter uses only fixed authenticated GET and projects bounded ob
   assert.equal(request.options.redirect, 'error'); assert.equal(request.options.headers.Authorization, 'Bearer fixture');
   assert(!JSON.stringify(result).includes('private')); assert(!JSON.stringify(result).includes('fixture'));
 });
+test('MOS underscore-prefixed container names remain readable without widening control targets', async () => {
+  const host = createMosReadHost({storage: {getItem: () => 'fixture'}, fetcher: async () => ({ok: true,
+    json: async () => [{name: '__registry_list_test__', state: 'stopped', unprivileged: true}]})});
+  const result = await host.listLxcContainers();
+  assert.equal(result.code, 'success');
+  assert.equal(result.value.items[0].name, '__registry_list_test__');
+  assert.equal((await host.controlTestContainer('__registry_list_test__')).code, 'denied');
+});
 test('denial, malformed data, credential changes and cancellation fail closed with redacted errors', async () => {
   for (const response of [{status: 401}, {status: 403}, {ok: false, status: 500},
     {ok: true, json: async () => ({items: sample})}, {ok: true, json: async () => [...sample, ...sample]},
