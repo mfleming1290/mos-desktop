@@ -2,15 +2,19 @@ import {Clock} from '@battlemoon/clock/vue';
 import {defaultClockConfig, validateClockConfig} from '@battlemoon/clock';
 import {defineComponent, h} from 'vue';
 import {createDesktopId} from './desktop-controller.mjs';
+import LxcStatus from './desktop-lxc.mjs';
 
 const capabilities = Object.freeze({movable: true, resizable: true, closable: true, minimizable: true, maximizable: true});
 export const registrations = Object.freeze([
+  {definition: {id: 'mos-lxc', display_name: 'MOS LXC Status', multiple_instances: false,
+    preferred_size: {width: 520, height: 340}, minimum_size: {width: 320, height: 220}, capabilities},
+    component: LxcStatus, defaults: {}, validate: () => ({code: 'success', value: {}})},
   {definition: {id: 'clock', display_name: 'Clock', multiple_instances: true,
     preferred_size: {width: 340, height: 220}, minimum_size: {width: 280, height: 180}, capabilities},
     component: Clock, defaults: defaultClockConfig, validate: validateClockConfig},
   {definition: {id: 'about', display_name: 'About Desktop', multiple_instances: false,
     preferred_size: {width: 380, height: 260}, minimum_size: {width: 280, height: 180}, capabilities},
-    component: defineComponent({setup: () => () => h('p', 'MOS Desktop uses the Battlemoon WASM runtime. Closing a view does not stop remote applications. No backend operations are available in M1.')}),
+    component: defineComponent({setup: () => () => h('p', 'MOS Desktop uses the Battlemoon WASM runtime. Closing a view does not stop remote applications. MOS LXC status is read-only; container control and native application launch are not enabled.')}),
     defaults: {}, validate: () => ({code: 'success', value: {}})},
 ]);
 

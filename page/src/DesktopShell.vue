@@ -6,6 +6,7 @@ import {createDesktopController} from './desktop-controller.mjs';
 import {registrations, initializeDesktop, launchApp, revealWindow, closeWindow, accepted} from './desktop-apps.mjs';
 import {previewBounds, recoverBounds} from './desktop-geometry.mjs';
 import {encodeLayout, decodeLayout, createLayoutStorage} from './desktop-layout.mjs';
+import {createMosReadHost} from './desktop-mos.mjs';
 
 // Only the trusted host may supply this; never infer it from browser UI or a display name.
 const props = defineProps({verifiedStorageScope: {type: String, default: ''}, canPersist: {type: Function, default: () => true}});
@@ -16,7 +17,8 @@ const configs = shallowRef(new Map()), activePage = ref(true), failures = shallo
 const abort = new AbortController();
 let controller, observer, gesture, persistence, live = true, saving = false, measured = false, actions = Promise.resolve();
 const frames = new Map(), descendants = new Map();
-const host = Object.freeze({readTime: async (_id, cancellation) => cancellation.aborted
+let mosStorage; try {mosStorage = globalThis.localStorage;} catch {}
+const host = Object.freeze({...createMosReadHost({storage: mosStorage}), readTime: async (_id, cancellation) => cancellation.aborted
   ? {code: 'cancelled', message: 'Cancelled'} : {code: 'success', value: Date.now()},
   schedule: (callback, interval) => {const timer = setInterval(callback, interval); return () => clearInterval(timer);}});
 const windows = computed(() => {

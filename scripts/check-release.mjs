@@ -11,7 +11,7 @@ assert.match(config.version,/^\d+\.\d+\.\d+$/);
 assert.equal(pkg.version,config.version);assert.equal(lock.version,config.version);assert.equal(lock.packages[''].version,config.version);
 if(process.env.RELEASE_TAG) assert.equal(process.env.RELEASE_TAG,config.version);
 const files = execFileSync('git',['ls-files'],{encoding:'utf8'}).trim().split('\n');
-const allowed = /^(\.github\/workflows\/build-plugin\.yml|\.gitattributes|\.gitignore|README\.md|runtime\/(runtime\.mjs|runtime\.wasm|identity\.json|THIRD-PARTY-NOTICES\.txt)|page\/(package(?:-lock)?\.json|plugin\.config\.js|vite\.config\.js|src\/(Plugin\.vue|DesktopShell\.vue|runtime-canary\.mjs|desktop-(apps|controller|geometry|layout|profile)\.mjs))|scripts\/(stage-runtime|prepare-components|check-built|package-local|check-release)\.mjs|scripts\/make-source\.py|tests\/(public-runtime|desktop-(apps|controller|geometry|layout|profile))\.test\.mjs)$/;
+const allowed = /^(\.github\/workflows\/build-plugin\.yml|\.gitattributes|\.gitignore|README\.md|runtime\/(runtime\.mjs|runtime\.wasm|identity\.json|THIRD-PARTY-NOTICES\.txt)|page\/(package(?:-lock)?\.json|plugin\.config\.js|vite\.config\.js|src\/(Plugin\.vue|DesktopShell\.vue|runtime-canary\.mjs|desktop-(apps|controller|geometry|layout|profile|mos|lxc)\.mjs))|scripts\/(stage-runtime|prepare-components|check-built|package-local|check-release)\.mjs|scripts\/make-source\.py|tests\/(public-runtime|desktop-(apps|controller|geometry|layout|profile|mos|lxc))\.test\.mjs)$/;
 for(const file of files) {
   assert(allowed.test(file),`Unreviewed public file: ${file}`);
   assert(!/[HC]:[\\/]\s*(?:code|Users)|\/home\/matt\/|gh[pousr]_[A-Za-z0-9]{20}|-----BEGIN (?:RSA |EC |OPENSSH )?PRIVATE KEY-----/.test(readFileSync(new URL(file,root)).toString('latin1')),file);

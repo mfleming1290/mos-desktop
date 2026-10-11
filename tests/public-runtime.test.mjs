@@ -13,6 +13,35 @@ const factory=await remote.get('./Plugin');
 const module=factory(),Page=module.default??module;
 const wasm=readFileSync(new URL('../runtime/runtime.wasm',import.meta.url));
 const flush=async()=>{for(let i=0;i<10;i++){await new Promise(resolve=>setTimeout(resolve,10));await Vue.nextTick();}};
+test('built LXC panel reads once, pauses hidden work, rejects late data and closes without mutations', async () => {
+  const before = Object.getOwnPropertyDescriptor(globalThis, 'localStorage');
+  const storage = dom.window.localStorage;
+  Object.defineProperty(globalThis, 'localStorage', {configurable: true, value: storage}); storage.setItem('authToken', 'fixture-admin');
+  let requests = [], late;
+  globalThis.fetch = async (url, options) => {
+    if (String(url) === '/api/v1/auth/profile') return {ok: true, json: async () => ({id: 'admin'})};
+    if (String(url).includes('/lxc/')) {
+      requests.push(options); assert.equal(options.method, 'GET');
+      if (requests.length > 1) return new Promise(resolve => {late = resolve;});
+      return {ok: true, json: async () => [{name: 'test-lxc', state: 'running', unprivileged: true}]};
+    }
+    return {ok: true, arrayBuffer: async () => wasm};
+  };
+  const app = Vue.createApp(Page);
+  try {
+    app.mount('#app'); await flush();
+    [...document.querySelectorAll('nav button')].find(b => b.textContent === 'New MOS LXC Status').click(); await flush();
+    assert.match(document.body.textContent, /test-lxc — running/); assert.equal(requests.length, 1);
+    const frame = document.querySelector('article');
+    frame.querySelector('[aria-label="Minimize"]').click(); await flush();
+    assert.match(frame.textContent, /Paused while hidden/); assert.doesNotMatch(frame.textContent, /test-lxc/);
+    [...document.querySelectorAll('nav button')].find(b => b.textContent.includes('(minimized)')).click(); await flush();
+    assert.equal(requests.length, 2);
+    frame.querySelector('[aria-label="Close"]').click(); await flush(); assert.equal(requests[1].signal.aborted, true);
+    late({ok: true, json: async () => [{name: 'late-lxc', state: 'running', unprivileged: true}]}); await flush();
+    assert.equal(document.querySelectorAll('article').length, 0); assert.doesNotMatch(document.body.textContent, /late-lxc/);
+  } finally {app.unmount(); storage.removeItem('authToken'); if (before) Object.defineProperty(globalThis, 'localStorage', before); else delete globalThis.localStorage;}
+});
 test('HTTP-compatible crypto supports startup and distinct app identities without randomUUID', async () => {
   const before = Object.getOwnPropertyDescriptor(globalThis, 'crypto');
   const secure = globalThis.crypto;

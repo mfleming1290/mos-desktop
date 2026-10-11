@@ -1,8 +1,8 @@
-# MOS Desktop — M1
+# MOS Desktop — bounded M2 slice
 
 One MOS-first application, eventually presented through the MOS plugin and an authenticated standalone browser route. Both will share host-owned session state. Neither frontend owns native process lifetime.
 
-Version **0.1.3** saves completed moves/resizes immediately, keeps manual retry only for failed autosaves and explains unavailable persistence. It retains 0.1.2's HTTP startup and corner-layout corrections in the M1 shell: independent Clocks and About, reducer-backed window controls, launcher/taskbar, pointer and keyboard manipulation, cleanup and scoped layout machinery. Published **0.1.0** remains the accepted M0 runtime canary and rollback. M1 acceptance remains partial until the updated actual MOS workflow is verified. No backend, native-app launch or standalone authentication is implemented.
+Version **0.2.0** is under local validation. It adds a MOS LXC Status window and a confirmed Start/Stop canary restricted to the disposable `testit` container. The M1 autosave/resize fixes have user-observed MOS acceptance. Published 0.1.3 remains the preceding shell rollback, and 0.1.0 remains the original runtime canary. M2 remains partial pending real management and installed-panel verification. Native-app launch, execution backend and standalone authentication are not implemented.
 
 ## Local build
 
@@ -26,11 +26,13 @@ Layout storage requires a verified scope and Web Locks. The MOS entry requests t
 
 ## Next gates and rollback
 
+M2 control canary limitation: a real MOS API stop succeeded, but the subsequent start failed because LXC reported the saved macvlan hardware address already in use. A temporary start-time address override recovered the disposable container without changing its saved configuration. The full normal stop/start round trip is not accepted; do not assume a successful request or restored SSH proves that gate.
+
 Publication is approved; installation remains user-controlled. Use MOS Hub's normal Update action to install 0.1.3, then reload the page. Local tests do not establish actual MOS pointer, focus, reload or update behavior. Verify two independent Clocks and About, move/resize and window controls, taskbar restore, then refresh to check scoped layout/configuration recovery. Releasing a completed move or resize immediately saves its committed geometry; previews/cancelled gestures never save their uncommitted bounds. Other layout/configuration changes autosave with a short debounce. Successful writes display an increasing session count; Retry autosave appears only after a write failure. HTTP LAN addresses can run the shell using cryptographic random bytes, but missing Web Locks, profile access or browser storage reports the specific memory-only reason, not a false save. Use HTTPS or localhost for persistence; fixing startup does not make HTTP transport secure. Browser layouts are origin-local: hostname, IP, localhost and HTTPS addresses do not share a saved layout.
 
 This is a private homelab application using temporary public Hub distribution, not a long-term public SDK project. Installed operation uses local assets without retrieving SDK source or GitHub build inputs. Making the repository private later may break anonymous discovery, updates and reinstalls even if installed assets continue working. Private/local Hub support remains unverified.
 
-M0 is accepted. M1 does not authorize M2 administration, M3 persistent Home/admission or M4 Selkies integration. Standalone access must authenticate independently and enforce equivalent authorization. Simultaneous input policy must be selected before two-view streaming acceptance.
+M0/M1 are accepted for the current bounded workflow; uncommon pointer/keyboard cases rely on automated supporting evidence, not exhaustive live acceptance. M2 uses a fixed authenticated GET of LXC containers with performance sampling disabled. The panel shows observation time, refreshes every 30 seconds while visible, clears observations and aborts pending reads on hide/close, and rejects late responses after credential changes. Only name, state and unprivileged flag are projected; raw config paths, credentials and metadata are not stored in layouts. Confirmed controls expose only fixed MOS POST routes for `testit/start` and `testit/stop`; no other target, operation or automatic retry is permitted. A completed request is not proof of container state: refresh observations to verify it. Closing a view never sends a stop request or reverses an admitted operation. MOS retains all authorization. The fixed link opens the existing MOS LXC administration page. No generic URL, command or shell bridge exists. M3 persistent Home/admission and M4 Selkies integration remain gated. Standalone access must authenticate independently and enforce equivalent authorization. Simultaneous input policy must be selected before two-view streaming acceptance.
 
 Use MOS's normal plugin removal controls for rollback. There is no backend service or persistent application data to migrate; do not change unrelated plugins or restart services.
 
