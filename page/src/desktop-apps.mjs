@@ -1,6 +1,7 @@
 import {Clock} from '@battlemoon/clock/vue';
 import {defaultClockConfig, validateClockConfig} from '@battlemoon/clock';
 import {defineComponent, h} from 'vue';
+import {createDesktopId} from './desktop-controller.mjs';
 
 const capabilities = Object.freeze({movable: true, resizable: true, closable: true, minimizable: true, maximizable: true});
 export const registrations = Object.freeze([
@@ -31,7 +32,7 @@ export async function launchApp(controller, definitionId, bounds, {focus = true}
     await revealWindow(controller, window.id);
     return {appId: existing.id, windowId: window.id};
   }
-  const appId = crypto.randomUUID(), windowId = crypto.randomUUID();
+  const appId = createDesktopId(), windowId = createDesktopId();
   await accepted(controller.dispatch('create_app', {id: appId, definition_id: definitionId,
     workspace_id: 'desktop', lifecycle: 'running', window_ids: []}));
   try {

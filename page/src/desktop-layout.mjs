@@ -32,7 +32,7 @@ export function decodeLayout(text, scope, registrations) {
 
 // A verified host scope is mandatory. Missing Web Locks means memory-only, not a fake lock.
 export function createLayoutStorage({scope, storage, locks, canPersist = () => true, onStatus = () => {}}) {
-  let writer = false, disposed = false, release, pending, timer;
+  let writer = false, disposed = false, release, pending, timer, saved = 0;
   const key = `mos-desktop:layout:1:${scope}`;
   const available = typeof scope === 'string' && scope.length > 0 && scope.length <= 200 && storage && locks;
   return {
@@ -53,12 +53,13 @@ export function createLayoutStorage({scope, storage, locks, canPersist = () => t
     save(text) {
       if (!writer || disposed || !canPersist()) return;
       pending = text; clearTimeout(timer);
+      onStatus('Saving layout…');
       timer = setTimeout(() => this.flush(), 200);
     },
     flush() {
       clearTimeout(timer);
       if (!writer || disposed || pending === undefined || !canPersist()) return;
-      try {storage.setItem(key, pending); pending = undefined; onStatus('Layout saved.');}
+      try {storage.setItem(key, pending); pending = undefined; onStatus(`Layout saved (#${++saved}).`);}
       catch {onStatus('Layout changes are not saved; previous record preserved. Retry is available.');}
     },
     dispose() {this.flush(); disposed = true; writer = false; clearTimeout(timer); release?.();},

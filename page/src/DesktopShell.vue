@@ -14,7 +14,7 @@ const ready = ref(false), layoutStatus = ref('Temporary layout'), canRetrySave =
 const area = shallowRef({width: 800, height: 520}), preview = shallowRef(null);
 const configs = shallowRef(new Map()), activePage = ref(true), failures = shallowRef(new Map());
 const abort = new AbortController();
-let controller, observer, gesture, persistence, live = true, saving = false, actions = Promise.resolve();
+let controller, observer, gesture, persistence, live = true, saving = false, measured = false, actions = Promise.resolve();
 const frames = new Map(), descendants = new Map();
 const host = Object.freeze({readTime: async (_id, cancellation) => cancellation.aborted
   ? {code: 'cancelled', message: 'Cancelled'} : {code: 'success', value: Date.now()},
@@ -34,7 +34,13 @@ const frameStyle = window => {
 };
 function report(error) {if (live) status.value = error.message ?? 'Desktop action failed';}
 function saveLayout() {if (saving && live && persistence?.writable) persistence.save(encodeLayout(controller.snapshot, configs.value, props.verifiedStorageScope));}
+function measureArea() {
+  const width = surface.value?.clientWidth, height = surface.value?.clientHeight;
+  if (!(width > 0 && height > 0)) return false;
+  area.value = {width, height}; measured = true; return true;
+}
 async function recoverWindows() {
+  if (!measured) return; // A hidden/unmeasured mount must not rewrite saved geometry.
   for (const window of windows.value) {
     if (!live || window.presentation.kind !== 'NORMAL') continue;
     const bounds = recoverBounds(window.bounds, registration(window).definition.minimum_size, area.value);
@@ -42,10 +48,10 @@ async function recoverWindows() {
       await accepted(controller.dispatch('set_bounds', {window_id: window.id, bounds}));
   }
 }
-function action(fn, focus = true) {
+function action(fn, focus = true, persist = true) {
   const next = actions.then(async () => {
     if (!live || !ready.value) return;
-    try {await fn(); await recoverWindows(); saveLayout(); if (live && focus) await reconcileFocus();} catch (error) {report(error);}
+    try {await fn(); await recoverWindows(); if (persist) saveLayout(); if (live && focus) await reconcileFocus();} catch (error) {report(error);}
   });
   actions = next.catch(report); return next;
 }
@@ -125,6 +131,7 @@ onErrorCaptured((error, instance) => {
 });
 onMounted(async () => {
   document.addEventListener('visibilitychange', visibility); visibility();
+  measureArea();
   try {
     const response = await fetch(wasmUrl, {signal: abort.signal, credentials: 'same-origin'});
     if (!live) return;
@@ -141,13 +148,15 @@ onMounted(async () => {
     const owns = await persistence.acquire(); if (!live) {persistence.dispose();return;}
     if (owns) {
       try {
+        await nextTick(); if (!live) return; measureArea();
         const text = persistence.read();
         if (text !== null) {
           const layout = decodeLayout(text, props.verifiedStorageScope, registrations), mapping = new Map();
           for (const saved of layout.windows) {
             if (!live) return;
             const definition = registrations.find(r => r.definition.id === saved.definitionId).definition;
-            const created = await launchApp(controller, saved.definitionId, recoverBounds(saved.bounds, definition.minimum_size, area.value), {focus: false});
+            const bounds = measured ? recoverBounds(saved.bounds, definition.minimum_size, area.value) : saved.bounds;
+            const created = await launchApp(controller, saved.definitionId, bounds, {focus: false});
             configs.value = new Map(configs.value).set(created.appId, saved.config); mapping.set(saved.key, created.windowId);
             await accepted(controller.dispatch('set_presentation', {window_id: created.windowId, presentation: saved.presentation}));
             await accepted(controller.dispatch('set_visibility', {window_id: created.windowId, visible: saved.visible}));
@@ -162,8 +171,7 @@ onMounted(async () => {
     if (!live) return; ready.value = true;
     observer = new ResizeObserver(() => {
       if (!live) return; endGesture();
-      area.value = {width: Math.max(1, surface.value.clientWidth), height: Math.max(1, surface.value.clientHeight)};
-      action(() => recoverWindows(), false);
+      if (measureArea()) action(() => recoverWindows(), false);
     });
     observer.observe(surface.value);
   } catch (error) {if (live) status.value = `Runtime unavailable: ${error.message}`;}
@@ -179,7 +187,7 @@ onUnmounted(() => {
   <section class="desktop-root" aria-label="MOS Desktop" @keydown="keydown">
     <h1>MOS Desktop</h1>
     <p role="status">{{ status }}</p>
-    <p role="status">{{ layoutStatus }} <button v-if="canRetrySave" @click="saveLayout(); persistence.flush()">Retry layout save</button></p>
+    <p role="status">{{ layoutStatus }} <button v-if="canRetrySave" @click="action(() => { saveLayout(); persistence.flush(); }, false, false)">Save layout</button></p>
     <p class="help">Keyboard: Alt+Shift+Left/Right switches windows; Alt+Shift+M minimizes; Alt+Shift+X closes. Escape cancels a drag.</p>
     <div ref="surface" class="desktop-surface" tabindex="-1" aria-label="Desktop workspace">
       <article v-for="(window, index) in windows" :key="window.id" :ref="el => el ? frames.set(window.id, el) : frames.delete(window.id)"

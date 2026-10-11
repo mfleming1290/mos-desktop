@@ -13,6 +13,47 @@ const factory=await remote.get('./Plugin');
 const module=factory(),Page=module.default??module;
 const wasm=readFileSync(new URL('../runtime/runtime.wasm',import.meta.url));
 const flush=async()=>{for(let i=0;i<10;i++){await new Promise(resolve=>setTimeout(resolve,10));await Vue.nextTick();}};
+test('HTTP-compatible crypto supports startup and distinct app identities without randomUUID', async () => {
+  const before = Object.getOwnPropertyDescriptor(globalThis, 'crypto');
+  const secure = globalThis.crypto;
+  Object.defineProperty(globalThis, 'crypto', {configurable: true, value: {getRandomValues: secure.getRandomValues.bind(secure)}});
+  globalThis.fetch = async () => ({ok: true, arrayBuffer: async () => wasm});
+  const app = Vue.createApp(Page);
+  try {
+    app.mount('#app'); await flush(); assert.match(document.body.textContent, /Runtime ready/);
+    for (let i = 0; i < 2; i++) {[...document.querySelectorAll('nav button')].find(b => b.textContent === 'New Clock').click(); await flush();}
+    const ids = [...document.querySelectorAll('article')].map(el => el.dataset.windowId);
+    assert.equal(ids.length, 2); assert.equal(new Set(ids).size, 2);
+  } finally {app.unmount(); Object.defineProperty(globalThis, 'crypto', before);}
+});
+test('wide workspace restores corner bounds before resize notification and confirms each manual save', async () => {
+  const proto = dom.window.HTMLElement.prototype;
+  const width = Object.getOwnPropertyDescriptor(proto, 'clientWidth'), height = Object.getOwnPropertyDescriptor(proto, 'clientHeight');
+  const nav = Object.getOwnPropertyDescriptor(globalThis, 'navigator');
+  Object.defineProperty(proto, 'clientWidth', {configurable: true, get: () => 2000});
+  Object.defineProperty(proto, 'clientHeight', {configurable: true, get: () => 1000});
+  Object.defineProperty(globalThis, 'navigator', {configurable: true, value: {locks: {request: (_key, _options, cb) => cb({})}}});
+  const key = 'mos-desktop:layout:1:corner-test';
+  dom.window.localStorage.setItem(key, JSON.stringify({schemaVersion: 1, scope: 'corner-test', focused: 'old', windows: [
+    {key: 'old', definitionId: 'clock', bounds: {x: 1550, y: 580, width: 340, height: 220}, presentation: 'normal', visible: true, config: {locale: 'en-GB', timeZone: 'UTC', seconds: true, hour12: false}},
+  ]}));
+  globalThis.fetch = async () => ({ok: true, arrayBuffer: async () => wasm});
+  const app = Vue.createApp(Page, {verifiedStorageScope: 'corner-test'});
+  try {
+    app.mount('#app'); await flush();
+    assert.equal(document.querySelector('article').style.left, '1550px');
+    assert.equal(document.querySelector('article').style.top, '580px');
+    const save = [...document.querySelectorAll('button')].find(b => b.textContent === 'Save layout');
+    assert(save); save.click(); await flush(); assert.match(document.body.textContent, /Layout saved \(#1\)/);
+    save.click(); await flush(); assert.match(document.body.textContent, /Layout saved \(#2\)/);
+    assert.equal(JSON.parse(dom.window.localStorage.getItem(key)).windows[0].bounds.x, 1550);
+  } finally {
+    app.unmount(); dom.window.localStorage.removeItem(key);
+    if (width) Object.defineProperty(proto, 'clientWidth', width); else delete proto.clientWidth;
+    if (height) Object.defineProperty(proto, 'clientHeight', height); else delete proto.clientHeight;
+    if (nav) Object.defineProperty(globalThis, 'navigator', nav); else delete globalThis.navigator;
+  }
+});
 test('real WASM command and host-only Vue',async()=>{
   let requested;
   globalThis.fetch=async(url,options)=>{requested={url,options};return{ok:true,arrayBuffer:async()=>wasm.buffer.slice(wasm.byteOffset,wasm.byteOffset+wasm.byteLength)};};

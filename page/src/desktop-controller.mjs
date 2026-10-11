@@ -1,7 +1,18 @@
 import {Command, Snapshot} from './generated/runtime.mjs';
 
+// Browser-owned identities, not credentials. getRandomValues also works on HTTP.
+export function createDesktopId() {
+  const source = globalThis.crypto;
+  if (typeof source?.randomUUID === 'function') return source.randomUUID();
+  if (typeof source?.getRandomValues !== 'function') throw new Error('Browser secure random source unavailable');
+  const bytes = source.getRandomValues(new Uint8Array(16));
+  bytes[6] = (bytes[6] & 15) | 64; bytes[8] = (bytes[8] & 63) | 128;
+  const hex = Array.from(bytes, byte => byte.toString(16).padStart(2, '0')).join('');
+  return `${hex.slice(0,8)}-${hex.slice(8,12)}-${hex.slice(12,16)}-${hex.slice(16,20)}-${hex.slice(20)}`;
+}
+
 // One route owns one snapshot. The SDK remains the only semantic state engine.
-export function createDesktopController(reduce, {aggregateId = crypto.randomUUID(), onChange = () => {}} = {}) {
+export function createDesktopController(reduce, {aggregateId = createDesktopId(), onChange = () => {}} = {}) {
   let snapshot = Snapshot.serializer.fromJsonCode('{"revision":0}');
   let disposed = false;
   let fault = null;
