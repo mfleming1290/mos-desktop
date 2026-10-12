@@ -17,7 +17,8 @@
     "test:e2e": "playwright test",
     "test:e2e:auth": "playwright test --project=auth",
     "test:e2e:list": "playwright test --list",
-    "test:personal-ui": "node tests/personal-ui.cjs"
+    "test:personal-ui": "node tests/personal-ui.cjs",
+    "test:backend": "python3 -m unittest discover -s backend -v"
   },
   "repository": {
     "type": "git",

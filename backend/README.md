@@ -8,7 +8,9 @@ contains no host-management or shell endpoint; terminal execution stays in LXC.
 ## Run tests
 
 On an ordinary Linux development user, create a virtual environment, install
-`requirements.txt`, then run `python -m unittest -v` from this directory.
+`requirements.txt`, then run `python -m unittest -v` from this directory (or
+root `npm run test:backend` with that environment active). GitHub's build also
+runs these Linux tests in its own disposable virtualenv, never against MOS.
 Tests create disposable Home directories and certificates, real PTYs and HTTPS
 servers. The MOS profile fixture tests policy, not live MOS integration.
 `preflight.py <expected-pool-UUID>` is a read-only MOS-host check; supply the

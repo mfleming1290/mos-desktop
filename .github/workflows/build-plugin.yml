@@ -30,6 +30,11 @@ jobs:
           node-version: '24.21.0'
           package-manager-cache: false
       - run: node scripts/check-release.mjs
+      - name: Verify scoped personal services without deployment
+        run: |
+          python3 -m venv .cache/backend-test-env
+          .cache/backend-test-env/bin/pip install --disable-pip-version-check -r backend/requirements.txt
+          .cache/backend-test-env/bin/python -m unittest discover -s backend -v
       - run: node scripts/prepare-components.mjs
       - run: npm ci --ignore-scripts --no-audit --no-fund
         working-directory: page
