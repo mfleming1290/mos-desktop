@@ -33,7 +33,7 @@ children+=("$!")
 /usr/bin/xedit -geometry 1000x600+20+20 &
 children+=("$!")
 "$bundle/selkies" --addr=127.0.0.1 --port=18031 --enable-basic-auth=true \
-  --enable-https=false --use-cpu=true --encoder=jpeg --framerate=15 \
+  --enable-https=false --use-cpu=true --encoder=jpeg --framerate=60 \
   --mode=websockets '--enable-dual-mode=false|locked' \
   '--audio-enabled=false|locked' '--microphone-enabled=false|locked' \
   '--webcam-enabled=false|locked' '--gamepad-enabled=false|locked' \

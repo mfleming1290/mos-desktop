@@ -5,10 +5,19 @@ from aiohttp import ClientSession, web
 from aiohttp.test_utils import TestServer
 
 from home import Blocked
-from streaming import StreamGateway, stream_path, bounded_body
+from streaming import StreamGateway, stream_path, bounded_body, sandbox_document
 
 
 class StreamPaths(unittest.TestCase):
+    def test_sandbox_document_adapts_only_self_messages(self):
+        document = sandbox_document(b'<html><head></head><body>stream</body></html>')
+        self.assertIn(b"event.source!==window||event.origin!=='null'", document)
+        self.assertIn(b"origin===window.location.origin?'*':origin", document)
+        self.assertIn(b"new MessageEvent", document)
+        self.assertTrue(document.endswith(b'</head><body>stream</body></html>'))
+        with self.assertRaises(Blocked):
+            sandbox_document(b'<body>unexpected upstream</body>')
+
     def test_fixed_surface(self):
         self.assertEqual(stream_path('assets/index-a.js', 'GET'), '/assets/index-a.js')
         self.assertEqual(stream_path('api/ws', 'GET', True), '/api/ws')

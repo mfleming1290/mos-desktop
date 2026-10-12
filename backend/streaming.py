@@ -12,6 +12,38 @@ PUBLIC = re.compile(r'^[a-f0-9]{64}$')
 VIEW = re.compile(r'^[a-zA-Z0-9-]{1,80}$')
 WEBSOCKETS = {'api/websockets', 'api/ws'}
 
+# Selkies' dashboard/core use same-window postMessage with the URL origin.
+# An opaque sandbox cannot target that origin. Adapt only self-messages: parent,
+# sibling and worker messages cannot masquerade as trusted dashboard traffic.
+SANDBOX_BOOTSTRAP = b'''<script>(()=>{
+const prefix=(window.location.origin+window.location.pathname).replace(/[^a-zA-Z0-9._-]/g,'_');
+for(const name of ['localStorage','sessionStorage']){const values=new Map(name==='localStorage'?[[prefix+'_framerate','60'],[prefix+'_use_browser_cursors','true']]:[]);Object.defineProperty(window,name,{value:{getItem:key=>values.get(String(key))??null,setItem:(key,value)=>values.set(String(key),String(value)),removeItem:key=>values.delete(String(key)),clear:()=>values.clear(),key:index=>Array.from(values.keys())[index]??null,get length(){return values.size}}});}
+const post=window.postMessage.bind(window),add=window.addEventListener.bind(window),remove=window.removeEventListener.bind(window),listeners=new WeakMap();
+let initialized=false;add('message',event=>{
+if(initialized||event.source!==window||event.origin!=='null'||event.data?.type!=='serverSettings')return;
+initialized=true;
+// Apply defaults through Selkies' existing settings protocol, not just its UI.
+post({type:'settings',settings:{framerate:60}},'*');
+post({type:'setUseBrowserCursors',value:true},'*');
+});
+window.postMessage=(data,origin,transfer)=>post(data,origin===window.location.origin?'*':origin,transfer);
+window.addEventListener=(type,listener,options)=>{
+if(type!=='message'||!listener)return add(type,listener,options);
+let wrapped=listeners.get(listener);if(!wrapped){wrapped=event=>{
+if(event.source!==window||event.origin!=='null')return;
+const local=new MessageEvent('message',{data:event.data,origin:window.location.origin,source:window,ports:event.ports,lastEventId:event.lastEventId});
+if(typeof listener==='function')listener.call(window,local);else listener.handleEvent(local);
+};listeners.set(listener,wrapped);}return add(type,wrapped,options);
+};
+window.removeEventListener=(type,listener,options)=>remove(type,type==='message'?(listeners.get(listener)||listener):listener,options);
+})();</script>'''
+
+
+def sandbox_document(data):
+    if b'<head>' not in data:
+        raise Blocked('streamUnavailable')
+    return data.replace(b'<head>', b'<head>' + SANDBOX_BOOTSTRAP, 1)
+
 
 async def bounded_body(response):
     data = bytearray()
@@ -142,10 +174,7 @@ class StreamGateway:
             if path == '/':
                 # Selkies expects Web Storage. Give the opaque frame ephemeral
                 # preferences only, never access to the parent's MOS storage.
-                bootstrap = b'''<script>(()=>{for(const name of ['localStorage','sessionStorage']){const values=new Map();Object.defineProperty(window,name,{value:{getItem:key=>values.get(String(key))??null,setItem:(key,value)=>values.set(String(key),String(value)),removeItem:key=>values.delete(String(key)),clear:()=>values.clear(),key:index=>Array.from(values.keys())[index]??null,get length(){return values.size}}});}})();</script>'''
-                if b'<head>' not in data:
-                    raise Blocked('streamUnavailable')
-                data = data.replace(b'<head>', b'<head>' + bootstrap, 1)
+                data = sandbox_document(data)
             return web.Response(body=data, content_type=upstream.content_type, headers={
                 'Cache-Control': 'no-store', 'Referrer-Policy': 'no-referrer',
                 'Access-Control-Allow-Origin': 'null',

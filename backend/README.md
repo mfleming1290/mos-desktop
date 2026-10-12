@@ -218,6 +218,15 @@ The opaque sandbox cannot read parent MOS storage. Ephemeral in-frame Web Storag
 supplies preferences only. Capability URLs are neither persisted nor logged.
 The fixed transport allowlist excludes file/upload/command APIs.
 
+The gateway adapts Selkies' same-window messages for the opaque sandbox, accepting
+only messages whose source is that window and whose origin is opaque. Parent
+messages cannot impersonate dashboard traffic. This restores actual server
+settings in the sidebar without granting same-origin access. Connection defaults
+are CPU JPEG, 60 FPS requested, quality40, paintover90 and browser cursors;
+preferences remain ephemeral. A requested frame rate is not measured delivered
+cadence or a latency guarantee. The launcher also defaults to60 for future starts.
+Existing native applications need not restart: reconnect loads the gateway fix.
+
 Installed0.2.14 browser checks pass native mouse/keyboard Save, viewer denial,
 takeover/old-controller denial, forbidden APIs/origins, iframe storage isolation,
 disconnect/reconnect, offline/online recovery and refresh/relaunch. Native xedit

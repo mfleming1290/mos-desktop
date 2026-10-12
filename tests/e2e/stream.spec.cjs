@@ -1,11 +1,48 @@
 const {test,expect}=require('@playwright/test');
 const {execFileSync}=require('node:child_process');
 
+test('opaque stream settings match the server and reject parent messages',async({context})=>{
+ test.skip(process.env.MOS_TEST_ACCOUNT!=='matt'||process.env.MOS_STREAM_TEST!=='1','Explicit owner stream integration run only');
+ test.setTimeout(45000);
+ const page=await context.newPage();
+ const since='@'+execFileSync('ssh',['root@mos','date','+%s'],{encoding:'utf8'}).trim();
+ let settingsReceived=0;
+ page.on('console',message=>{if(message.text().includes('Dashboard received server settings'))settingsReceived++;});
+ await page.goto('/_plugins/desktop/standalone/standalone.html');
+ await page.getByText('Runtime ready',{exact:true}).waitFor();
+ await page.getByRole('button',{name:'New Personal Stream',exact:true}).click();
+ const article=page.getByRole('article',{name:'Personal Stream',exact:true}).last();
+ try{
+  await article.getByRole('button',{name:'Take stream input control',exact:true}).click();
+  await expect.poll(()=>settingsReceived).toBeGreaterThan(0);
+  const frame=page.frames().find(f=>f.url().includes('/desktop-stream/'));
+  await frame.getByRole('button',{name:'Video Settings',exact:true}).press('Enter');
+  await expect(frame.locator('#framerateSlider')).toHaveValue('60');
+  await expect(frame.locator('#jpegQualitySlider')).toHaveValue('40');
+  await expect(frame.locator('#paintOverJpegQualitySlider')).toHaveValue('90');
+  await expect(frame.getByText('Video CRF (25):',{exact:true})).toHaveCount(0);
+  expect(await frame.evaluate(()=>{try{void parent.localStorage;return false;}catch{return true;}})).toBe(true);
+  const before=settingsReceived;
+  // Negative boundary probe: a parent cannot impersonate Selkies self-messages.
+  await article.locator('iframe').evaluate(iframe=>iframe.contentWindow.postMessage({type:'serverSettings',payload:{encoder:{allowed:['h264enc'],value:'h264enc'}}},'*'));
+  await page.waitForTimeout(200);
+  expect(settingsReceived).toBe(before);
+  const logs=()=>execFileSync('ssh',['root@mos','lxc-attach','-n','mos-desktop','--','journalctl','-u','mos-desktop-stream','--since='+since,'--no-pager'],{encoding:'utf8'});
+  // Verify the backend applied the connection defaults, not only their UI values.
+  await expect.poll(()=>/settings applied.*jpeg.*60 fps.*software encoding/.test(logs())).toBe(true);
+  await frame.getByRole('button',{name:'Screen Settings',exact:true}).press('Enter');
+  await expect(frame.getByTitle('Use canvas cursor rendering (Paint to canvas)',{exact:true})).toBeVisible();
+ }finally{
+  await article.getByRole('button',{name:'Disconnect stream',exact:true}).click({timeout:2000}).catch(()=>{});
+  await page.close();
+ }
+});
+
 test('scoped stream input ownership, native save and view recovery',async({context})=>{
  test.skip(process.env.MOS_TEST_ACCOUNT!=='matt'||process.env.MOS_STREAM_TEST!=='1','Explicit owner stream integration run only');
  test.setTimeout(90000);
  const views=[];
- const nativeRead=path=>execFileSync('ssh',['root@mos','lxc-attach','-n','mos-desktop','--','runuser','-u','matt','--','cat',path],{encoding:'utf8'});
+ const nativeRead=path=>{try{return execFileSync('ssh',['root@mos','lxc-attach','-n','mos-desktop','--','runuser','-u','matt','--','cat',path],{encoding:'utf8',stdio:['ignore','pipe','pipe']});}catch(error){if(error.status===1&&String(error.stderr).includes('No such file or directory'))return '';throw error;}};
  const applicationPid=()=>execFileSync('ssh',['root@mos','lxc-attach','-n','mos-desktop','--','pgrep','-u','matt','-x','xedit'],{encoding:'utf8'}).trim();
  const originalPid=applicationPid();
  async function attach(takeover){
