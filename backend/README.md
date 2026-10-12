@@ -66,11 +66,15 @@ hook after pools/network/services exist. Preserve existing scripts when adding
 the hook. Verify expected pool UUID and protected directory ownership before
 using its code/keys. Nginx routes only the exact personal-operation endpoint and
 verifies the loopback bridge certificate; HTTP is rejected. Validate configuration
-before graceful reload, retaining the original for rollback. No host reboot was
-performed; this is configuration/lifecycle evidence, not full reboot acceptance.
-LXC autostart remains off. After a future reboot/manual container start, stale
-admission may require trusted reinspection before restarting this agent/bridge;
-never bypass that check or infer successful automatic recovery.
+before graceful reload, retaining the original for rollback. The owner-managed
+2026-10-12 host reboot recovered the bridge/packages/HTTPS routes automatically.
+The container remained stopped as configured; a scoped manual start recovered all
+four enabled services. Agents retried twice while Tailscale became ready, then
+recovered without configuration or admission changes. Trusted preflight verified
+pool, Home ownership, required bind, reviewed mounts and namespace mapping.
+LXC autostart remains off. Future device identity changes still require trusted
+reinspection; do not bypass stale-admission refusal. This proves manual container
+recovery after a real host reboot, not unattended container startup or rollback.
 
 ## Protocol and scope
 
@@ -172,8 +176,10 @@ backup, not an application-consistent snapshot or a backup of service keys/confi
 The 2026-10-12 backup and isolated restore passed on separate device `/dev/sdb1`;
 the original Home uses `/dev/nvme0n1p2`. Both copies are retained, about 2 GiB total.
 
-Full host reboot/rollback remains untested; safe preflight is configuration proof
-only. Native Battle/human media-quality checks remain separate; Landlock and
+Real host reboot plus manual container recovery now passes installed embedded and
+standalone Home/editor/terminal and scoped streaming regressions. Two pre-reboot
+nested proof files match their backup hashes. Full rollback remains untested.
+Native Battle/human media-quality checks remain separate; Landlock and
 MOS-wide JWT revocation no longer block the homelab completion point.
 
 ## Approved Selkies installation and scoped streaming
@@ -217,8 +223,9 @@ takeover/old-controller denial, forbidden APIs/origins, iframe storage isolation
 disconnect/reconnect, offline/online recovery and refresh/relaunch. Native xedit
 PID stays unchanged. Real mTLS no-certificate rejection and wrong-owner403 pass.
 Audio stays disabled; the upstream client emits an AudioDecoder-unavailable
-warning in the opaque sandbox, but JPEG/input works. No audio, hardware-encoding,
-host-reboot or subjective media-quality acceptance is implied.
+warning in the opaque sandbox, but JPEG/input works. The owner-managed host reboot
+and manual container start also pass these streaming checks. No audio,
+hardware-encoding or subjective media-quality acceptance is implied.
 Run MOS_TEST_ACCOUNT=matt and MOS_STREAM_TEST=1 with
 `npx playwright test tests/e2e/stream.spec.cjs`. Existing root@mos SSH is used only
 for read-only canary/PID assertions. Tests retain unique canaries, never end PTYs.
