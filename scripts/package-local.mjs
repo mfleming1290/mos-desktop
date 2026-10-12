@@ -30,6 +30,8 @@ copyFileSync(path.join(root,'page/src/generated/identity.json'),path.join(docs,'
 copyFileSync(path.join(root,'runtime/LAYOUT-NOTICES.txt'),path.join(docs,'LAYOUT-NOTICES.txt'));
 copyFileSync(path.join(root,'runtime/layout-identity.json'),path.join(docs,'layout-provenance.json'));
 copyFileSync(path.join(root,'runtime/XTERM-NOTICES.txt'),path.join(docs,'XTERM-NOTICES.txt'));
+copyFileSync(path.join(root,'runtime/EDITOR-NOTICES.txt'),path.join(docs,'EDITOR-NOTICES.txt'));
+copyFileSync(path.join(root,'runtime/editor-identity.json'),path.join(docs,'editor-provenance.json'));
 for (const file of readdirSync(path.join(root, 'page/dist/desktop'))) {
   copyFileSync(path.join(root, 'page/dist/desktop', file), path.join(web, file));
 }

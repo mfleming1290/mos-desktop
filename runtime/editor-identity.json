@@ -1,0 +1,9 @@
+{
+  "component": "@battlemoon/editor",
+  "version": "0.1.0",
+  "sourceRevision": "1140122595041dfa432731ad6a022104e5179fc0",
+  "assets": {
+    "editor.mjs": "842d88a62b68e676927e9a644caf8b5a3efffe3ee45f3499d470b2bb8a9164dd",
+    "EDITOR-NOTICES.txt": "55c87b1afc239bab179699ff25b566a35b48ee3df21ab01dddd5cbac036d210d"
+  }
+}

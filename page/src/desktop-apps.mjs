@@ -5,9 +5,13 @@ import {createDesktopId} from './desktop-controller.mjs';
 import LxcStatus from './desktop-lxc.mjs';
 const PersonalHome=defineAsyncComponent(()=>import('./PersonalHome.vue'));
 const PersonalTerminal=defineAsyncComponent(()=>import('./PersonalTerminal.vue'));
+const PersonalEditor=defineAsyncComponent(()=>import('./PersonalEditor.vue'));
 
 const capabilities = Object.freeze({movable: true, resizable: true, closable: true, minimizable: true, maximizable: true});
 export const registrations = Object.freeze([
+  {definition:{id:'editor',display_name:'Personal Editor',multiple_instances:true,
+    preferred_size:{width:760,height:520},minimum_size:{width:360,height:260},capabilities},
+    component:PersonalEditor,defaults:{},validate:()=>({code:'success',value:{}})},
   {definition:{id:'home',display_name:'Personal Home',multiple_instances:false,
     preferred_size:{width:560,height:440},minimum_size:{width:320,height:240},capabilities},
     component:PersonalHome,defaults:{},validate:()=>({code:'success',value:{}})},
