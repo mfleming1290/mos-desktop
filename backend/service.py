@@ -12,7 +12,7 @@ from aiohttp import ClientError, ClientSession, ClientTimeout, TCPConnector, web
 from home import Blocked, Conflict, Home, LIMIT
 from terminal import Terminals
 
-OPERATIONS = frozenset(('health', 'list', 'read', 'mkdir', 'write', 'terminal.create',
+OPERATIONS = frozenset(('health', 'list', 'read', 'mkdir', 'write', 'move', 'trash', 'trash.list', 'restore', 'terminal.create',
                         'terminal.list', 'terminal.attach', 'terminal.detach', 'terminal.output',
                         'terminal.input', 'terminal.resize', 'terminal.end'))
 
@@ -46,6 +46,8 @@ async def errors(request, handler):
         response = web.json_response({'error': 'notFound'}, status=404)
     except FileExistsError:
         response = web.json_response({'error': 'conflict'}, status=409)
+    except PermissionError:
+        response = web.json_response({'error': 'permissionDenied'}, status=403)
     except (ValueError, TypeError, KeyError, UnicodeError):
         response = web.json_response({'error': 'invalidRequest'}, status=400)
     except (OSError, ClientError, asyncio.TimeoutError):
@@ -77,7 +79,8 @@ def agent_app(config, home):
         async with lock:
             if op == 'health':
                 result = {'protocol': 1, 'generation': config['generation'],
-                          'files': True, 'writeMode': 'optimisticTopLevel', 'rename': False,
+                          'files': True, 'writeMode': 'optimisticTopLevel',
+                          'nestedMutations': home.libc.syscall(444, 0, 0, 1) >= 3,
                           'delete': False, 'terminal': True, 'uid': os.geteuid()}
             elif op == 'list':
                 cursor = args.get('cursor', 0)
@@ -93,6 +96,14 @@ def agent_app(config, home):
             elif op == 'write':
                 data = base64.b64decode(args['data'], validate=True)
                 result = {'version': home.write(args['path'], data, args['expected'])}
+            elif op == 'move':
+                result = home.move(args['path'], args['destination'])
+            elif op == 'trash':
+                result = home.trash(args['path'])
+            elif op == 'trash.list':
+                result = home.trash_list()
+            elif op == 'restore':
+                result = home.restore(args['id'])
             elif op == 'terminal.create':
                 result = terminals.create(owner)
             elif op == 'terminal.list':

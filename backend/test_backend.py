@@ -88,13 +88,115 @@ class Files(unittest.TestCase):
             self.home.write('large', b'x' * (LIMIT + 1), None)
         self.assertFalse((self.path / 'large').exists())
 
-    def test_nested_writes_are_not_admitted(self):
+    def test_nested_move_trash_restore_and_conflicts(self):
+        if self.home.libc.syscall(444, 0, 0, 1) < 3:
+            self.skipTest('Landlock ABI3 required for native reparent containment')
         self.home.mkdir('Documents')
+        self.home.mkdir('Documents/nested')
+        self.home.write('Documents/nested/new', b'new', None)
+        self.home.move('Documents/nested', 'renamed')
+        self.assertEqual(self.home.read('renamed/new')[0], b'new')
+        with self.assertRaises(Conflict):
+            self.home.move('renamed/new', 'renamed')
         with self.assertRaises(Blocked):
-            self.home.write('Documents/new', b'new', None)
-        with self.assertRaises(Blocked):
-            self.home.mkdir('Documents/nested')
-        self.assertEqual(self.home.list('Documents')['entries'], [])
+            self.home.move('renamed', 'renamed/child')
+        receipt = self.home.trash('renamed')
+        self.assertFalse((self.path / 'renamed').exists())
+        self.assertEqual(self.home.trash_list()['entries'][0]['state'], 'recoverable')
+        self.home.mkdir('renamed')
+        with self.assertRaises(Conflict):
+            self.home.restore(receipt['id'])
+        (self.path / 'renamed').rmdir()
+        reopened = open_home(self.path)
+        try:
+            reopened.restore(receipt['id'])
+            self.assertEqual(reopened.read('renamed/new')[0], b'new')
+        finally:
+            reopened.close()
+        self.assertEqual(self.home.trash_list()['entries'][0]['state'], 'completedOrInterrupted')
+
+    def test_nested_permissions_and_boundaries(self):
+        if self.home.libc.syscall(444, 0, 0, 1) < 3:
+            self.skipTest('Landlock ABI3 required for native reparent containment')
+        self.home.mkdir('locked')
+        os.chmod(self.path / 'locked', 0o500)
+        try:
+            with self.assertRaises(PermissionError):
+                self.home.mkdir('locked/child')
+            with self.assertRaises(PermissionError):
+                self.home.write('locked/new', b'no', None)
+        finally:
+            os.chmod(self.path / 'locked', 0o700)
+        (self.path / 'escape').symlink_to('/tmp', target_is_directory=True)
+        for action in [lambda: self.home.mkdir('escape/child'),
+                       lambda: self.home.write('escape/new', b'no', None),
+                       lambda: self.home.move('locked', '../outside'),
+                       lambda: self.home.trash('../outside'),
+                       lambda: self.home.restore('../outside'),
+                       lambda: self.home.move('locked', 'escape/child')]:
+            with self.assertRaises(Blocked):
+                action()
+        self.assertTrue((self.path / 'locked').is_dir())
+
+    def test_landlock_blocks_reparented_parent_handle(self):
+        if self.home.libc.syscall(444, 0, 0, 1) < 3:
+            self.skipTest('Landlock ABI3 required for native reparent containment')
+        # Direct child probe: a pinned handle no longer beneath Home must not
+        # become a mutation capability after native directory reparenting.
+        script = '''import os,sys
+from pathlib import Path
+from home import Home,confine
+p=Path(sys.argv[1]); fd=os.open(p,os.O_RDONLY|os.O_DIRECTORY)
+mid=next(x.split()[1] for x in Path('/proc/self/fdinfo/'+str(fd)).read_text().splitlines() if x.startswith('mnt_id:'))
+os.close(fd); h=Home(str(p),os.geteuid(),p.stat().st_dev,mid)
+held=h.open('node',os.O_RDONLY|os.O_DIRECTORY)
+os.rename(p/'node',sys.argv[2]); confine(h)
+try: os.mkdir('escape',dir_fd=held)
+except PermissionError: sys.exit(0)
+sys.exit(1)
+'''
+        self.home.mkdir('node')
+        with tempfile.TemporaryDirectory(prefix='mos-native-outside-') as outside:
+            subprocess.run([__import__('sys').executable, '-c', script, str(self.path), outside+'/moved'], check=True)
+            self.assertFalse((Path(outside) / 'moved' / 'escape').exists())
+
+    def test_mutations_fail_closed_without_kernel_support(self):
+        if self.home.libc.syscall(444, 0, 0, 1) >= 3:
+            self.skipTest('Missing-kernel-support case only')
+        self.home.mkdir('Documents')
+        self.home.write('proof', b'keep', None)
+        for action in [lambda: self.home.mkdir('Documents/nested'),
+                       lambda: self.home.write('Documents/new', b'no', None),
+                       lambda: self.home.move('proof', 'Documents/new'),
+                       lambda: self.home.trash('proof')]:
+            with self.assertRaisesRegex(Blocked, 'mutationUnavailable'):
+                action()
+        self.assertEqual(self.home.read('proof')[0], b'keep')
+
+    def test_interrupted_trash_is_discoverable_and_restore_preserves_payload(self):
+        if self.home.libc.syscall(444, 0, 0, 1) < 3:
+            self.skipTest('Landlock ABI3 required for native reparent containment')
+        self.home.mkdir('Documents')
+        self.home.write('Documents/proof', b'keep after interruption', None)
+        script = '''import os,sys
+from pathlib import Path
+from home import Home,confine
+p=Path(sys.argv[1]); f=os.open(p,os.O_RDONLY|os.O_DIRECTORY)
+m=next(x.split()[1] for x in Path('/proc/self/fdinfo/'+str(f)).read_text().splitlines() if x.startswith('mnt_id:'))
+os.close(f); h=Home(str(p),os.geteuid(),p.stat().st_dev,m); confine(h)
+rename=h.rename
+def interrupted(*args):
+ rename(*args)
+ os._exit(42)
+h.rename=interrupted; h._trash('Documents/proof')
+'''
+        result = subprocess.run([__import__('sys').executable, '-c', script, str(self.path)])
+        self.assertEqual(result.returncode, 42)
+        entries = self.home.trash_list()['entries']
+        self.assertEqual(len(entries), 1)
+        self.assertEqual(entries[0]['path'], 'Documents/proof')
+        self.home.restore(entries[0]['id'])
+        self.assertEqual(self.home.read('Documents/proof')[0], b'keep after interruption')
 
     def test_replacement_missing_identity_and_reopen(self):
         self.home.write('.settings', b'persist', None)
