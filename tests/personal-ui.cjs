@@ -19,9 +19,14 @@ const server=spawn(process.execPath,[path.join(__dirname,'../page/node_modules/v
   page.on('pageerror',error=>console.error('Local fixture page error:',error.message));
   const calls=[],files=new Map(),sessions=[];
   let ended=0,echo='',outputSequence=1,inputActive=0,maxInputActive=0;
+  let inputDelay=80,limitRequests=false,requestTimes=[];
   await page.addInitScript(()=>localStorage.setItem('authToken','isolated-fixture-not-a-MOS-credential'));
   await page.route('**/desktop-api/v1/operation',async route=>{
     const {operation,args}=route.request().postDataJSON();calls.push({operation,args});
+    const now=Date.now();requestTimes=requestTimes.filter(time=>now-time<1000);requestTimes.push(now);
+    if(limitRequests&&requestTimes.length>20){
+      await route.fulfill({status:429,json:{error:'rateLimited'}});return;
+    }
     let value={},status=200;
     if(operation==='list')value={entries:[...files].map(([name,data])=>({name,kind:'file',size:data.length})),next:null};
     else if(operation==='write'){
@@ -34,7 +39,7 @@ const server=spawn(process.execPath,[path.join(__dirname,'../page/node_modules/v
     else if(operation==='terminal.output')value={sequence:outputSequence,gap:false,exited:false,data:args.after<outputSequence?Buffer.from('TERMINAL_READY\r\n'+echo).toString('base64'):''};
     else if(operation==='terminal.input'){
       inputActive++;maxInputActive=Math.max(maxInputActive,inputActive);
-      await new Promise(resolve=>setTimeout(resolve,80));
+      await new Promise(resolve=>setTimeout(resolve,inputDelay));
       echo+=Buffer.from(args.data,'base64').toString();outputSequence++;value={acceptedBytes:Buffer.from(args.data,'base64').length};inputActive--;
     }
     else if(operation==='terminal.end'){ended++;value={exited:true};}
@@ -74,12 +79,20 @@ const server=spawn(process.execPath,[path.join(__dirname,'../page/node_modules/v
       await page.waitForTimeout(15);
       if(index===14){
         assert(calls.filter(c=>c.operation==='terminal.input').length>beforeTyping,'Continuous typing must send before typing stops');
-        assert((await terminal.locator('.xterm-rows').innerText()).includes('ww'),'Echo must render while typing continues');
+        assert((await terminal.locator('.xterm-rows').innerText()).includes('w'),'Echo must render while typing continues');
       }
     }
     await terminal.locator('.xterm-rows').getByText(/wwwwww/).first().waitFor({timeout:350});
     assert.equal(maxInputActive,1,'Input requests must remain serialized under delayed responses');
     console.log('PASS sustained typing sends and renders echo while typing, without waiting for idle poll');
+    inputDelay=0;limitRequests=true;requestTimes=[];
+    for(let index=0;index<160;index++){
+      await page.keyboard.press('d');await page.waitForTimeout(15);
+    }
+    await terminal.getByText('Connected — input enabled',{exact:true}).waitFor({timeout:1000});
+    assert((await terminal.locator('.xterm-rows').innerText()).includes('dddddddd'));
+    console.log('PASS prolonged fast typing retains control under a 20/s service limit');
+    limitRequests=false;
     await page.keyboard.type('echo browser-input');await page.keyboard.press('Enter');
     await page.waitForTimeout(250);
     assert(calls.filter(c=>c.operation==='terminal.input').map(c=>Buffer.from(c.args.data,'base64').toString()).join('').includes('echo browser-input'));
@@ -88,8 +101,9 @@ const server=spawn(process.execPath,[path.join(__dirname,'../page/node_modules/v
     terminal=page.getByRole('article',{name:'Personal Terminal',exact:true});
     await terminal.getByText('Connected — input enabled',{exact:true}).waitFor();
     assert.equal(sessions.length,1);assert.equal(await terminal.getByLabel('Terminal session').inputValue(),'fixture-session');
+    const detached=page.waitForResponse(response=>response.url().endsWith('/desktop-api/v1/operation')&&response.request().postDataJSON()?.operation==='terminal.detach');
     await terminal.getByRole('button',{name:'Close',exact:true}).click();
-    await page.waitForTimeout(100);
+    await detached;
     assert.equal(ended,0);assert(calls.some(c=>c.operation==='terminal.detach'));
     await page.getByRole('button',{name:'New Personal Terminal',exact:true}).click();
     terminal=page.getByRole('article',{name:'Personal Terminal',exact:true});

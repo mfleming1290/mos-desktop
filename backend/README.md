@@ -43,6 +43,11 @@ Each call verifies current `/api/v1/auth/profile` and exact account ID/name;
 boot/admin tokens lacking an actual owner profile are not personal grants.
 Browser credentials are forwarded only to MOS, never to the agent. Bearer auth
 plus exact Origin is mandatory. No additional cookie-authenticated mode exists.
+Personal views share an80ms request-start budget; the bridge also spaces profile
+checks by80ms across clients, retaining authentication on every operation without
+caching grants or changing MOS's20/s limiter. Upstream429 remains rateLimited,
+not unauthenticated; other upstream failures return backendUnavailable. Output
+reads back off for one second on rate limiting. Terminal input is never replayed.
 
 `mos-desktop-agent.service` is installed and enabled in the approved LXC. It runs
 as existing matt, requires the real Home mount and bounds its

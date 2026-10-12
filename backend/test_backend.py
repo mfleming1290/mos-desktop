@@ -233,8 +233,13 @@ class HttpsBoundary(unittest.IsolatedAsyncioTestCase):
         self.config = {'owner_id': 'owner-fixture-id', 'generation': 'test-generation'}
         self.agent = await self.serve(agent_app(self.config, open_home(self.path / 'home')), True)
         self.revoked = False
+        self.profile_status = 200
+        self.profile_times = []
 
         async def profile(request):
+            self.profile_times.append(asyncio.get_running_loop().time())
+            if self.profile_status != 200:
+                return web.json_response({}, status=self.profile_status)
             token = request.headers.get('Authorization')
             if self.revoked or token not in ('Bearer owner', 'Bearer other'):
                 return web.json_response({}, status=403)
@@ -272,6 +277,26 @@ class HttpsBoundary(unittest.IsolatedAsyncioTestCase):
         for runner in reversed(self.runners):
             await runner.cleanup()
         self.scratch.cleanup()
+
+    async def test_profile_overload_is_not_authentication_loss(self):
+        self.profile_status = 429
+        status, value = await self.call()
+        self.assertEqual(status, 429)
+        self.assertEqual(value['error'], 'rateLimited')
+        self.profile_status = 503
+        status, value = await self.call()
+        self.assertEqual(status, 503)
+        self.assertEqual(value['error'], 'backendUnavailable')
+
+    async def test_shared_auth_budget_still_verifies_every_request(self):
+        results = await asyncio.gather(*(self.call() for _ in range(7)))
+        self.assertTrue(all(status == 200 for status, _ in results))
+        self.assertEqual(len(self.profile_times), 7)
+        # TLS handshake scheduling can compress individual arrival intervals;
+        # the complete burst must still consume its shared pacing budget.
+        self.assertGreaterEqual(self.profile_times[-1] - self.profile_times[0], .4)
+        self.revoked = True
+        self.assertEqual((await self.call())[0], 401)
 
     async def call(self, operation='health', args=None, token='owner', origin='https://localhost', **extra):
         headers = {'Origin': origin}

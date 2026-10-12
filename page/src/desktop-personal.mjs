@@ -2,6 +2,7 @@
 export function createPersonalHost({storage, fetcher = globalThis.fetch} = {}) {
   let disposed = false;
   const pending = new Set();
+  let nextRequest = 0;
   const credential = () => {try {return storage?.getItem('authToken') || '';} catch {return '';}};
   async function operation(operation, args = {}, signal) {
     const token = credential();
@@ -11,6 +12,12 @@ export function createPersonalHost({storage, fetcher = globalThis.fetch} = {}) {
     const cancel = () => controller.abort(); signal?.addEventListener('abort', cancel, {once:true});
     const timeout = setTimeout(cancel, 10000);
     try {
+      // One shared budget for all personal views, not one timer per terminal.
+      // MOS authenticates each request under its existing 20/s global limiter.
+      const delay = Math.max(0, nextRequest - performance.now());
+      nextRequest = performance.now() + delay + 80;
+      if (delay) await new Promise(resolve => setTimeout(resolve, delay));
+      if (disposed || controller.signal.aborted || token !== credential()) throw new Error('cancelled');
       const response = await fetcher('/desktop-api/v1/operation', {method:'POST',
         credentials:'omit', redirect:'error', signal:controller.signal,
         headers:{Authorization:`Bearer ${token}`, 'Content-Type':'application/json'},
@@ -19,7 +26,7 @@ export function createPersonalHost({storage, fetcher = globalThis.fetch} = {}) {
       const value = await response.json();
       if (disposed || controller.signal.aborted || token !== credential()) throw new Error('cancelled');
       if (!response.ok) {
-        const safe = new Set(['conflict','forbidden','unauthenticated','notFound','backendUnavailable',
+        const safe = new Set(['conflict','forbidden','unauthenticated','rateLimited','notFound','backendUnavailable',
           'writeUnavailable','saveCopyRequired','topLevelOnly','capacityExceeded','controlRequired','storageUnavailable']);
         throw new Error(safe.has(value?.error) ? value.error : 'operationFailed');
       }

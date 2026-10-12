@@ -137,6 +137,8 @@ def bridge_app(config, backend_ssl):
     mos = secure_url(config['mos_origin'])
     backend = secure_url(config['backend_origin'])
     client = None
+    profile_gate = asyncio.Lock()
+    next_profile = 0
 
     async def lifetime(app):
         nonlocal client
@@ -146,17 +148,29 @@ def bridge_app(config, backend_ssl):
         await client.close()
 
     async def dispatch(request):
+        nonlocal next_profile
         if request.headers.get('Origin') != origin:
             raise Blocked('forbidden')
         authorization = request.headers.get('Authorization', '')
         if not authorization.startswith('Bearer ') or len(authorization) > 8192:
             return web.json_response({'error': 'unauthenticated'}, status=401)
         # Always recheck current MOS identity; never decode an unverified JWT.
+        # Share the budget across tabs/clients. Do not cache authentication or
+        # change MOS's limiter; leave headroom for ordinary dashboard requests.
+        async with profile_gate:
+            loop = asyncio.get_running_loop()
+            await asyncio.sleep(max(0, next_profile - loop.time()))
+            next_profile = loop.time() + .08
         async with client.get(mos + '/api/v1/auth/profile',
                               headers={'Authorization': authorization},
                               allow_redirects=False) as response:
-            if response.status != 200:
+            if response.status == 429:
+                return web.json_response({'error': 'rateLimited'}, status=429,
+                                         headers={'Retry-After': '1'})
+            if response.status in (401, 403):
                 return web.json_response({'error': 'unauthenticated'}, status=401)
+            if response.status != 200:
+                return web.json_response({'error': 'backendUnavailable'}, status=503)
             if response.content_length and response.content_length > 65536:
                 raise Blocked('forbidden')
             raw = await response.content.read(65537)

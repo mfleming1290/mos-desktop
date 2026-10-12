@@ -54,7 +54,11 @@ async function poll(generation,id){
     }
     clearTimeout(timer);
     timer=setTimeout(()=>poll(generation,id),wakeOutput?0:Date.now()-lastActivity<500?75:1000);
-  }catch(e){if(generation===epoch)error(e);}
+  }catch(e){if(generation===epoch){
+    // A rejected read is safe to retry; never replay terminal input.
+    if(e.message==='rateLimited')timer=setTimeout(()=>poll(generation,id),1000);
+    else error(e);
+  }}
   finally{if(pollingGeneration===generation)pollingGeneration=null;}
 }
 async function detach(){
