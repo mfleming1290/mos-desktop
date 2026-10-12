@@ -3,5 +3,5 @@
 import {createApp,h} from 'vue';
 import DesktopShell from './src/DesktopShell.vue';
 // Development-only host, excluded by the federated distribution allowlist.
-createApp({render:()=>h(DesktopShell)}).mount('#app');
+createApp({render:()=>h(DesktopShell,{verifiedStorageScope:'isolated-fixture-owner'})}).mount('#app');
 </script></body></html>

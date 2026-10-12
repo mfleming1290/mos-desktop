@@ -13,7 +13,11 @@ export const registrations = Object.freeze([
     component:PersonalHome,defaults:{},validate:()=>({code:'success',value:{}})},
   {definition:{id:'terminal',display_name:'Personal Terminal',multiple_instances:true,
     preferred_size:{width:760,height:520},minimum_size:{width:360,height:260},capabilities},
-    component:PersonalTerminal,defaults:{},validate:()=>({code:'success',value:{}})},
+    component:PersonalTerminal,defaults:{sessionId:'',generation:''},validate:value=>{
+      const sessionId=value?.sessionId??'',generation=value?.generation??'';
+      return typeof sessionId==='string'&&typeof generation==='string'&&/^[A-Za-z0-9_-]{0,128}$/.test(sessionId)&&/^[A-Za-z0-9_-]{0,128}$/.test(generation)
+        ?{code:'success',value:{sessionId,generation}}:{code:'invalid',message:'Invalid terminal reference'};
+    }},
   {definition: {id: 'mos-lxc', display_name: 'MOS LXC Status', multiple_instances: false,
     preferred_size: {width: 520, height: 340}, minimum_size: {width: 320, height: 220}, capabilities},
     component: LxcStatus, defaults: {}, validate: () => ({code: 'success', value: {}})},

@@ -30,7 +30,12 @@ const frames = new Map(), descendants = new Map();
 let mosStorage; try {mosStorage = globalThis.localStorage;} catch {}
 const personal=createPersonalHost({storage:mosStorage});
 onUnmounted(()=>personal.dispose());
-const host = Object.freeze({personal,...createMosReadHost({storage: mosStorage}), readTime: async (_id, cancellation) => cancellation.aborted
+const host = Object.freeze({personal,rememberTerminal(instanceId,reference){
+  if(!live || !controller?.snapshot.apps.some(a=>a.id===instanceId&&a.definitionId==='terminal'))return;
+  const validated=registrations.find(r=>r.definition.id==='terminal').validate(reference);
+  if(validated.code!=='success')return;
+  configs.value=new Map(configs.value).set(instanceId,validated.value);saveLayout();persistence?.flush();
+},...createMosReadHost({storage: mosStorage}), readTime: async (_id, cancellation) => cancellation.aborted
   ? {code: 'cancelled', message: 'Cancelled'} : {code: 'success', value: Date.now()},
   schedule: (callback, interval) => {const timer = setInterval(callback, interval); return () => clearInterval(timer);}});
 const windows = computed(() => {

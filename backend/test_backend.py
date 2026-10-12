@@ -273,6 +273,11 @@ class HttpsBoundary(unittest.IsolatedAsyncioTestCase):
         status, read = await self.call('read', {'path': 'proof'})
         self.assertEqual(base64.b64decode(read['data']), b'one')
         self.assertEqual(len(read['version']), 64)
+        _, created = await self.call('terminal.create')
+        self.assertEqual((await self.call('terminal.attach', {'id':created['id'], 'view':'test-view',
+                                                            'generation':'obsolete'}))[0],403)
+        self.assertEqual((await self.call('terminal.attach', {'id':created['id'], 'view':'test-view',
+                                                            'generation':created['generation']}))[0],200)
         self.revoked = True
         self.assertEqual((await self.call('read', {'path': 'proof'}))[0], 401)
 

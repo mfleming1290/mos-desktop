@@ -73,6 +73,9 @@ explicit takeover is supported. Polling reauthenticates each operation. Logout
 invalidates client access, but MOS currently does not revoke an otherwise valid
 JWT server-side; full access revocation on MOS logout remains an integration gate.
 No PTY survival across service restart is promised: old IDs fail, files survive.
+Browser layout stores only validated session/generation references under the
+existing identity fence. Refresh reattaches that reference without creating a
+shell; an expired input lease or explicit takeover is still required for control.
 
 ## Consumer checks and remaining live gates
 

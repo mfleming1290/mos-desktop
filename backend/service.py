@@ -69,6 +69,8 @@ def agent_app(config, home):
         op, args = value['operation'], value.get('args', {})
         if op not in OPERATIONS:
             raise Blocked('forbidden')
+        if op.startswith('terminal.') and args.get('generation', config['generation']) != config['generation']:
+            raise Blocked('forbidden')
         home.check()
         owner = config['owner_id']
         async with lock:

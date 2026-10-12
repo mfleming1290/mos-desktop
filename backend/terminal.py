@@ -85,7 +85,7 @@ class Terminals:
         return session
 
     def list(self, owner):
-        return [{'id': key, 'exited': value['process'].poll() is not None}
+        return [{'id': key, 'generation': self.generation, 'exited': value['process'].poll() is not None}
                 for key, value in self.sessions.items() if value['owner'] == owner]
 
     def attach(self, owner, key, view, takeover=False):

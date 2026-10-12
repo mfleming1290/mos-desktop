@@ -3,11 +3,13 @@ import {ref,onMounted,onBeforeUnmount,watch} from 'vue';
 import {Terminal} from '@xterm/xterm';
 import '@xterm/xterm/css/xterm.css';
 import {createDesktopId} from './desktop-controller.mjs';
-const props=defineProps({host:Object,active:Boolean});
-const target=ref(),sessions=ref([]),selected=ref(''),status=ref('Disconnected'),columns=ref(80),rows=ref(24);
+const props=defineProps({host:Object,active:Boolean,instanceId:String,config:Object});
+const target=ref(),sessions=ref([]),selected=ref(props.config?.sessionId??''),selectedGeneration=ref(props.config?.generation??''),status=ref('Disconnected'),columns=ref(80),rows=ref(24);
 const view=createDesktopId(),controller=ref(false);
 let terminal,live=true,timer,sequence=0,input='',sending=false,inputTimer,epoch=0;
-const call=(operation,args={})=>props.host.personal.operation(operation,args);
+const call=(operation,args={})=>props.host.personal.operation(operation,
+  operation!=='terminal.list'&&operation!=='terminal.create'&&selectedGeneration.value?{...args,generation:selectedGeneration.value}:args);
+const remember=()=>props.host.rememberTerminal?.(props.instanceId,{sessionId:selected.value,generation:selectedGeneration.value});
 const error=e=>{if(live){status.value=e.message;controller.value=false;if(terminal)terminal.options.disableStdin=true;}};
 async function inventory(){if(!props.active)return;try{const value=await call('terminal.list');if(live&&props.active)sessions.value=value.sessions;}catch(e){error(e);}}
 async function connect(takeover=false){
@@ -33,6 +35,7 @@ async function poll(generation,id){
     const lease=await call('terminal.attach',{id,view});
     if(!live || generation!==epoch)return;
     controller.value=lease.controller;terminal.options.disableStdin=!lease.controller;
+    status.value=lease.controller?'Connected — input enabled':'Connected — read only';
     timer=setTimeout(()=>poll(generation,id),1000);
   }catch(e){error(e);}
 }
@@ -41,8 +44,8 @@ async function detach(){
   if(terminal)terminal.options.disableStdin=true;
   if(selected.value)try{await call('terminal.detach',{id:selected.value,view});}catch{}
 }
-async function choose(event){await detach();selected.value=event.target.value;sequence=0;terminal.reset();await connect();}
-async function create(){try{await detach();const value=await call('terminal.create');if(!live)return;selected.value=value.id;sequence=0;terminal.reset();await inventory();await connect();}catch(e){error(e);}}
+async function choose(event){const id=event.target.value;await detach();selected.value=id;selectedGeneration.value=sessions.value.find(s=>s.id===id)?.generation??'';remember();sequence=0;terminal.reset();await connect();}
+async function create(){try{await detach();const value=await call('terminal.create');if(!live)return;selected.value=value.id;selectedGeneration.value=value.generation;remember();sequence=0;terminal.reset();await inventory();await connect();}catch(e){error(e);}}
 async function send(){
   if(sending || !input || !controller.value || !props.active)return;
   const value=input;input='';sending=true;
@@ -53,7 +56,7 @@ async function send(){
 }
 async function end(){
   if(!selected.value || !confirm('End this terminal session? Running jobs may stop.'))return;
-  try{const result=await call('terminal.end',{id:selected.value});if(!result.exited)throw new Error('Session did not exit; no force stop performed');await detach();selected.value='';await inventory();status.value='Session ended';}catch(e){error(e);}
+  try{const result=await call('terminal.end',{id:selected.value});if(!result.exited)throw new Error('Session did not exit; no force stop performed');await detach();selected.value='';selectedGeneration.value='';remember();await inventory();status.value='Session ended';}catch(e){error(e);}
 }
 async function applySize(){
   const cols=+columns.value,height=+rows.value;
@@ -68,9 +71,14 @@ onMounted(()=>{
     if(data.length>1 && (/[\r\n]/.test(data)||data.length>1024) && !confirm('Send this paste to the connected personal terminal?'))return;
     if(new TextEncoder().encode(input+data).length>4096){input='';error(new Error('Input capacity exceeded; not sent'));return;}
     input+=data;clearTimeout(inputTimer);inputTimer=setTimeout(send,50);
-  });inventory();
+  });inventory();connect();
 });
 watch(()=>props.active,value=>{if(value){inventory();connect();}else detach();});
+watch(()=>props.config,async value=>{
+  const id=value?.sessionId??'',generation=value?.generation??'';
+  if(id===selected.value&&generation===selectedGeneration.value)return;
+  await detach();selected.value=id;selectedGeneration.value=generation;sequence=0;terminal?.reset();if(terminal)connect();
+});
 onBeforeUnmount(()=>{live=false;detach();terminal?.dispose();});
 </script>
 <template>
