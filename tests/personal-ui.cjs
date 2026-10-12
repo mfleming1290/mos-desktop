@@ -72,7 +72,10 @@ const server=spawn(process.execPath,[path.join(__dirname,'../page/node_modules/v
     for(let index=0;index<30;index++){
       await page.keyboard.press('w');
       await page.waitForTimeout(15);
-      if(index===14)assert(calls.filter(c=>c.operation==='terminal.input').length>beforeTyping,'Continuous typing must send before typing stops');
+      if(index===14){
+        assert(calls.filter(c=>c.operation==='terminal.input').length>beforeTyping,'Continuous typing must send before typing stops');
+        assert((await terminal.locator('.xterm-rows').innerText()).includes('ww'),'Echo must render while typing continues');
+      }
     }
     await terminal.locator('.xterm-rows').getByText(/wwwwww/).first().waitFor({timeout:350});
     assert.equal(maxInputActive,1,'Input requests must remain serialized under delayed responses');
