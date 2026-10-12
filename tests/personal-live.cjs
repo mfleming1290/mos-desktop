@@ -38,7 +38,9 @@ const presentation=process.env.MOS_TEST_PRESENTATION==='standalone'
     await home.getByText('Document opened', { exact: true }).waitFor();
     assert.equal(await home.getByLabel('Plain-text preview / new document').inputValue(), text + ' saved');
     const secondPage = await context.newPage();
-    await secondPage.goto(baseURL + presentation);
+    // The other presentation must observe the same backend file and conflicts.
+    await secondPage.goto(baseURL + (presentation==='/plugins/desktop'
+      ? '/_plugins/desktop/standalone/standalone.html' : '/plugins/desktop'));
     await secondPage.getByText('Runtime ready', { exact: true }).waitFor();
     await secondPage.getByRole('button', { name: 'New Personal Home', exact: true }).click();
     const other = secondPage.getByRole('article', { name: 'Personal Home', exact: true }).last();

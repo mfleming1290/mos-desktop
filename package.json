@@ -7,7 +7,7 @@
   "devDependencies": {
     "@playwright/test": "^1.64.0"
   },
-  "description": "One MOS-first application, eventually presented through the MOS plugin and an authenticated standalone browser route. Both will share host-owned session state. Neither frontend owns native process lifetime.",
+  "description": "One MOS-first application with embedded and same-origin authenticated standalone presentations sharing scoped personal services. Neither frontend owns native process lifetime.",
   "main": "index.js",
   "directories": {
     "test": "tests"

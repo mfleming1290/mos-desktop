@@ -113,15 +113,21 @@ detach, reattach and confirmed End against an explicit HTTP fixture. It does not
 use MOS credentials or replace real backend acceptance. `npm test` retains the
 existing suite and includes credential-fenced personal/document adapter tests.
 The separate `tests/editor-host-integration.mjs` takes BATTLEMOON_EDITOR_MODULE
-from the reviewed SDK DOM entry and mounts real CodeMirror with host-injected
-Open/Save As. That seam is not an installed MOS editor window or Battle native
-input acceptance. The SDK package still owns editor mechanics and its artifact.
+from the compiled editor DOM entry and mounts real CodeMirror with host-injected
+Open/Save/Save As. The installed Personal Editor now passes these operations,
+reopening and stale-conflict edit retention against MOS. The SDK owns editor
+mechanics; only its minified compiled artifact, hashes and dependency notices are
+shipped. This is not Battle native editor input acceptance.
 
 Live owner/non-owner admission, real scoped files/PTYs, service restarts, approved
 TLS ingress and installed Home/Terminal browser workflows pass. Run dedicated
 owner auth first with `MOS_TEST_ACCOUNT=matt`, then `node tests/personal-live.cjs`.
 It uses real UI input and retains a unique small canary file; it does not restart
-services or end other sessions. Full file/edit policy, logout revocation, full
+services or end other sessions. Add MOS_TEST_PRESENTATION=standalone to run the
+same real service workflows through the same-origin standalone entry. Both runs
+exercise480 actual keystrokes, complete echo delivery and retained input control.
+The other presentation updates the same canary to verify real cross-view conflicts.
+Full file/edit policy, logout revocation, full
 host reboot/rollback and streaming remain unaccepted. Safe preflight
 checks establish configuration only. Streaming cannot qualify until admission is
 accepted and Selkies installation in this LXC is separately approved. STREAM2
