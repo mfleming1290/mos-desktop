@@ -80,7 +80,7 @@ class Home:
                                ctypes.c_char_p(value), ctypes.byref(how), ctypes.sizeof(how))
         if fd < 0:
             error = ctypes.get_errno()
-            if error in (errno.ENOSYS, errno.EINVAL, errno.ELOOP, errno.EXDEV):
+            if error in (errno.ENOSYS, errno.EINVAL, errno.ELOOP, errno.EXDEV, errno.ENOTDIR):
                 raise Blocked('containmentUnavailable')
             raise OSError(error, os.strerror(error))
         st = os.fstat(fd)

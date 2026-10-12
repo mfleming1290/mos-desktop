@@ -157,7 +157,8 @@ sys.exit(1)
 '''
         self.home.mkdir('node')
         with tempfile.TemporaryDirectory(prefix='mos-native-outside-') as outside:
-            subprocess.run([__import__('sys').executable, '-c', script, str(self.path), outside+'/moved'], check=True)
+            subprocess.run([__import__('sys').executable, '-c', script, str(self.path), outside+'/moved'],
+                           cwd=Path(__file__).parent, check=True)
             self.assertFalse((Path(outside) / 'moved' / 'escape').exists())
 
     def test_mutations_fail_closed_without_kernel_support(self):
@@ -190,7 +191,7 @@ def interrupted(*args):
  os._exit(42)
 h.rename=interrupted; h._trash('Documents/proof')
 '''
-        result = subprocess.run([__import__('sys').executable, '-c', script, str(self.path)])
+        result = subprocess.run([__import__('sys').executable, '-c', script, str(self.path)], cwd=Path(__file__).parent)
         self.assertEqual(result.returncode, 42)
         entries = self.home.trash_list()['entries']
         self.assertEqual(len(entries), 1)
