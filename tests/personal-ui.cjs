@@ -90,6 +90,13 @@ const server=spawn(process.execPath,[path.join(__dirname,'../page/node_modules/v
     await editor.getByRole('button',{name:'Open file',exact:true}).click();
     await editor.getByText('Document opened',{exact:true}).waitFor();
     assert((await editor.locator('.cm-content').innerText()).includes('retain unsaved conflict'));
+    await editor.locator('.cm-content').fill('must not replace via Save As');
+    await editor.getByRole('button',{name:'Save document as',exact:true}).click();
+    await editor.getByText('conflict',{exact:true}).waitFor();
+    assert.equal(Buffer.from(files.get('editor-copy.txt'),'base64').toString(),'retain unsaved conflict');
+    await editor.getByRole('button',{name:'Minimize',exact:true}).click();
+    await page.getByRole('button',{name:'Personal Editor (minimized)',exact:true}).click();
+    assert((await editor.locator('.cm-content').innerText()).includes('must not replace via Save As'));
     await editor.getByRole('button',{name:'Close',exact:true}).click();
     console.log('PASS shared editor actual browser Open/Save/Save As/reopen and conflict retention');
     await page.getByRole('button',{name:'New Personal Terminal',exact:true}).click();

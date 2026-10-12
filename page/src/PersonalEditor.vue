@@ -20,6 +20,7 @@ async function run(kind){
       const result=await commands.open(path.value,{discard});
       if(!live)return;opened.value=result.path;saved.value=editor.snapshot().text;
     }else{
+      if(kind==='copy'&&path.value===opened.value)throw new Error('conflict');
       const result=await commands.save(kind==='copy'?{path:path.value}:{});
       if(!live)return;opened.value=result.path;path.value=result.path;saved.value=saving;
     }
