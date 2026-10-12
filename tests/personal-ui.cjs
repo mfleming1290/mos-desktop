@@ -25,7 +25,7 @@ const server=spawn(process.execPath,[path.join(__dirname,'../page/node_modules/v
     let value={},status=200;
     if(operation==='list')value={entries:[...files].map(([name,data])=>({name,kind:'file',size:data.length})),next:null};
     else if(operation==='write'){
-      if(args.expected!==null || files.has(args.path)){status=409;value={error:'conflict'};}
+      if(args.expected===null ? files.has(args.path) : args.expected!=='fixture-version' || !files.has(args.path)){status=409;value={error:'conflict'};}
       else {files.set(args.path,args.data);value={version:'fixture-version'};}
     }else if(operation==='read')value={data:files.get(args.path),version:'fixture-version'};
     else if(operation==='terminal.list')value={sessions:sessions.map(id=>({id,generation:'fixture-generation',exited:false}))};
@@ -50,6 +50,14 @@ const server=spawn(process.execPath,[path.join(__dirname,'../page/node_modules/v
     await home.getByRole('button',{name:'Save new copy',exact:true}).click();
     await home.getByText('conflict',{exact:true}).waitFor();
     assert.equal(Buffer.from(files.get('browser-proof.txt'),'base64').toString(),'saved through actual browser');
+    await home.getByRole('button',{name:'Save opened file',exact:true}).click();
+    await home.getByText('Document saved',{exact:true}).waitFor();
+    assert.equal(Buffer.from(files.get('browser-proof.txt'),'base64').toString(),'must not overwrite');
+    files.delete('browser-proof.txt');
+    await home.getByLabel('Plain-text preview / new document').fill('keep this unsaved edit');
+    await home.getByRole('button',{name:'Save opened file',exact:true}).click();
+    await home.getByText('conflict',{exact:true}).waitFor();
+    assert.equal(await home.getByLabel('Plain-text preview / new document').inputValue(),'keep this unsaved edit');
     await home.getByRole('button',{name:'Close',exact:true}).click();
     await page.getByRole('button',{name:'New Personal Terminal',exact:true}).click();
     let terminal=page.getByRole('article',{name:'Personal Terminal',exact:true});

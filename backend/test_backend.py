@@ -42,12 +42,33 @@ class Files(unittest.TestCase):
         self.home.mkdir('Documents')
         first = self.home.write('example.txt', b'one', None)
         self.assertEqual(self.home.read('example.txt'), (b'one', first))
-        with self.assertRaises(Blocked):
+        second = self.home.write('example.txt', b'two', first)
+        self.assertEqual(self.home.read('example.txt'), (b'two', second))
+        with self.assertRaises(Conflict):
             self.home.write('example.txt', b'lost', first)
         with self.assertRaises(Conflict):
             self.home.write('example.txt', b'lost', None)
-        self.assertEqual(self.home.read('example.txt')[0], b'one')
+        self.assertEqual(self.home.read('example.txt')[0], b'two')
         self.assertEqual(len(self.home.list()['entries']), 2)
+        self.assertFalse(any(p.name.startswith('.mos-desktop-save-') for p in self.path.iterdir()))
+
+    def test_replace_missing_unsafe_and_invalid_versions(self):
+        version = '0' * 64
+        with self.assertRaises(Conflict):
+            self.home.write('missing', b'new', version)
+        self.assertFalse((self.path / 'missing').exists())
+        (self.path / 'link').symlink_to('/etc/passwd')
+        (self.path / 'file').write_bytes(b'one')
+        os.link(self.path / 'file', self.path / 'hardlink')
+        os.mkfifo(self.path / 'fifo')
+        for path in ['link', 'hardlink', 'fifo']:
+            with self.subTest(path=path), self.assertRaises(Blocked):
+                self.home.write(path, b'bad', version)
+        for invalid in ['', 'A' * 64, 123, {}, 'z' * 64]:
+            with self.subTest(version=invalid), self.assertRaises(Blocked):
+                self.home.write('file', b'bad', invalid)
+        self.assertEqual((self.path / 'file').read_bytes(), b'one')
+        self.assertFalse(any(p.name.startswith('.mos-desktop-save-') for p in self.path.iterdir()))
 
     def test_traversal_links_specials_and_bounds(self):
         for path in ['../outside', '/etc/passwd', 'x/../../y', 'x\\y', '%2e%2e/x', 'x\x00y']:
@@ -273,6 +294,11 @@ class HttpsBoundary(unittest.IsolatedAsyncioTestCase):
         status, read = await self.call('read', {'path': 'proof'})
         self.assertEqual(base64.b64decode(read['data']), b'one')
         self.assertEqual(len(read['version']), 64)
+        self.assertEqual((await self.call('write', {'path': 'proof', 'data': 'dHdv',
+                                                   'expected': read['version']}))[0], 200)
+        self.assertEqual((await self.call('write', {'path': 'proof', 'data': 'bG9zdA==',
+                                                   'expected': read['version']}))[0], 409)
+        self.assertEqual(base64.b64decode((await self.call('read', {'path': 'proof'}))[1]['data']), b'two')
         _, created = await self.call('terminal.create')
         self.assertEqual((await self.call('terminal.attach', {'id':created['id'], 'view':'test-view',
                                                             'generation':'obsolete'}))[0],403)
@@ -297,7 +323,7 @@ class HttpsBoundary(unittest.IsolatedAsyncioTestCase):
 
     async def test_readonly_admission_and_real_service_process_restart(self):
         self.assertEqual((await self.call('write', {'path': 'denied', 'data': 'b25l', 'expected': 'old'}))[1],
-                         {'error': 'saveCopyRequired'})
+                         {'error': 'invalidVersion'})
         self.assertFalse((self.path / 'home' / 'denied').exists())
         import socket
         import sys

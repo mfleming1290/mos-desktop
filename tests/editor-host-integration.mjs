@@ -19,20 +19,23 @@ const editor=mountEditor(document.querySelector('main'),{instanceId:'host-open-s
 const files=new Map([['original',{data:btoa('opened text'),version:'one'}]]);
 const host={operation:async(op,args)=>{
   if(op==='read')return files.get(args.path);
-  if(args.expected!==null)throw new Error('saveCopyRequired');
-  if(files.has(args.path))throw new Error('conflict');
+  if(args.expected===null ? files.has(args.path) : files.get(args.path)?.version!==args.expected)throw new Error('conflict');
   const record={data:args.data,version:'new-version'};files.set(args.path,record);return record;
 }};
 const commands=createDocumentCommands({host,editor});
 try {
   await commands.open('original');assert.equal(editor.snapshot().text,'opened text');
   editor.replaceText('user edit');
-  await assert.rejects(commands.save(),/saveCopyRequired/);
-  await commands.save({path:'copy'});assert.equal(atob(files.get('copy').data),'user edit');
+  await commands.save();assert.equal(atob(files.get('original').data),'user edit');
+  files.set('original',{data:btoa('external edit'),version:'external-version'});
+  editor.replaceText('retained edit');
+  await assert.rejects(commands.save(),/conflict/);
+  assert.equal(editor.snapshot().text,'retained edit');
+  await commands.save({path:'copy'});assert.equal(atob(files.get('copy').data),'retained edit');
   editor.setActive(false);
   await assert.rejects(commands.open('original'),/editorInactive/);
-  assert.equal(editor.snapshot().text,'user edit');
+  assert.equal(editor.snapshot().text,'retained edit');
   editor.setActive(true);
-  await commands.open('original');assert.equal(editor.snapshot().text,'opened text');
-  console.log('PASS real CodeMirror editor with host-injected Open/Save As, overwrite denial and suspension');
+  await commands.open('original');assert.equal(editor.snapshot().text,'external edit');
+  console.log('PASS real CodeMirror editor with host-injected Open/Save/Save As, conflict retention and suspension');
 } finally {commands.dispose();editor.dispose();dom.window.close();}

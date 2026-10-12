@@ -79,14 +79,15 @@ max10000; four PTYs,1MiB replay each; eight concurrent requests,8second bridge
 deadline. These are service bounds, not a filesystem quota against the user shell.
 
 File reads reject traversal, encoded ambiguity, symlinks, extra mount crossings,
-special files and hardlinks. Linux openat2 is mandatory. Writes create only new
-top-level files through the pinned Home root handle, fsync staging, publish with
-renameat2 NOREPLACE, then fsync Home. Existing files are never overwritten; even
-an expected version returns saveCopyRequired. Nested mutation and rename are
-unavailable, avoiding parent-directory relocation and native-writer compare/replace
-races. Save As creates a new copy and preserves the original. This deliberately
-narrow supported policy is not full original M3 file/edit acceptance; overwrite,
-nested mutation and move remain unmet requirements. No deployment flag bypasses it.
+special files and hardlinks. Linux openat2 is mandatory. Top-level writes use
+the pinned Home root handle, fsync a mode0600 staging file, atomically publish,
+then fsync Home. Save As uses renameat2 NOREPLACE and preserves originals.
+Existing-file Save requires the SHA256 version returned by read: immediately
+before replacement, the safe read must match or return conflict (including a
+missing target). Replacement creates a new mode0600 inode. This is optimistic
+conflict detection, not compare-and-swap: a terminal/native writer can still race
+between the check and rename. The user explicitly accepted this limitation.
+Nested mutation, move and trash remain unavailable and unmet original requirements.
 
 Terminal output is base64 bytes with sequence/gap/exited metadata. Input is
 bounded and returns accepted byte count; never automatically replay uncertain

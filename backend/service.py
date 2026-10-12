@@ -77,7 +77,7 @@ def agent_app(config, home):
         async with lock:
             if op == 'health':
                 result = {'protocol': 1, 'generation': config['generation'],
-                          'files': True, 'writeMode': 'createTopLevel', 'rename': False,
+                          'files': True, 'writeMode': 'optimisticTopLevel', 'rename': False,
                           'delete': False, 'terminal': True, 'uid': os.geteuid()}
             elif op == 'list':
                 cursor = args.get('cursor', 0)

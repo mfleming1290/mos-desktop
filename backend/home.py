@@ -141,10 +141,11 @@ class Home:
         relative(path)
         if len(data) > LIMIT:
             raise Blocked('capacityExceeded')
-        if expected is not None:
-            raise Blocked('saveCopyRequired')
         if '/' in path:
             raise Blocked('topLevelOnly')
+        if expected is not None and (not isinstance(expected, str) or len(expected) != 64
+                                     or any(c not in '0123456789abcdef' for c in expected)):
+            raise Blocked('invalidVersion')
         fd, name = self.fd, path
         temporary = '.mos-desktop-save-' + secrets.token_hex(16)
         created = False
@@ -157,7 +158,18 @@ class Home:
                 out.write(data)
                 out.flush()
                 os.fsync(out.fileno())
-            result = self.libc.renameat2(fd, temporary.encode(), fd, name.encode(), 1)
+            if expected is not None:
+                # Optimistic check, not a filesystem compare-and-swap: native
+                # writers can still race between this read and atomic rename.
+                try:
+                    current = self.read(path)[1]
+                except FileNotFoundError:
+                    raise Conflict('conflict') from None
+                if current != expected:
+                    raise Conflict('conflict')
+            self.check()
+            result = self.libc.renameat2(fd, temporary.encode(), fd, name.encode(),
+                                         1 if expected is None else 0)
             if result != 0:
                 error = ctypes.get_errno()
                 if error == errno.EEXIST:
