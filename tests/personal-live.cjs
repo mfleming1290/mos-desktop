@@ -4,13 +4,15 @@ const { chromium } = require('@playwright/test');
 const { authFile, baseURL } = require('./e2e/environment.cjs');
 if (process.env.MOS_TEST_ACCOUNT !== 'matt') throw new Error('Select the dedicated matt test account');
 let stage = 'launch';
+const presentation=process.env.MOS_TEST_PRESENTATION==='standalone'
+  ? '/_plugins/desktop/standalone/standalone.html' : '/plugins/desktop';
 (async () => {
   const browser = await chromium.launch();
   let context, terminal, page, sessionCreated = false;
   try {
     context = await browser.newContext({ storageState: authFile });
     page = await context.newPage();
-    await page.goto(baseURL + '/plugins/desktop');
+    await page.goto(baseURL + presentation);
     await page.getByText('Runtime ready', { exact: true }).waitFor();
     stage = 'Home';
     await page.getByRole('button', { name: 'New Personal Home', exact: true }).click();
@@ -36,7 +38,7 @@ let stage = 'launch';
     await home.getByText('Document opened', { exact: true }).waitFor();
     assert.equal(await home.getByLabel('Plain-text preview / new document').inputValue(), text + ' saved');
     const secondPage = await context.newPage();
-    await secondPage.goto(baseURL + '/plugins/desktop');
+    await secondPage.goto(baseURL + presentation);
     await secondPage.getByText('Runtime ready', { exact: true }).waitFor();
     await secondPage.getByRole('button', { name: 'New Personal Home', exact: true }).click();
     const other = secondPage.getByRole('article', { name: 'Personal Home', exact: true }).last();
@@ -95,6 +97,18 @@ let stage = 'launch';
     sessionCreated = true;
     const id = await terminal.getByLabel('Terminal session').inputValue();
     await terminal.locator('.xterm-screen').click();
+    stage = 'sustained terminal input';
+    for(let index=0;index<480;index++){
+      await page.keyboard.press('w');await page.waitForTimeout(15);
+    }
+    let delivered=0;
+    for(let attempt=0;attempt<20;attempt++){
+      delivered=((await terminal.locator('.xterm-rows').innerText()).match(/w/g)||[]).length;
+      if(delivered>=480)break;await page.waitForTimeout(100);
+    }
+    assert(delivered>=480,'Sustained input must arrive without losing characters');
+    await terminal.getByText('Connected — input enabled',{exact:true}).waitFor();
+    await page.keyboard.press('Control+u');
     await page.keyboard.type('echo live-browser-terminal');
     await page.keyboard.press('Enter');
     await page.getByText(/Layout saved/).first().waitFor();
@@ -107,7 +121,7 @@ let stage = 'launch';
     await terminal.getByRole('button', { name: 'End terminal session', exact: true }).click();
     await terminal.getByText('Session ended', { exact: true }).waitFor();
     sessionCreated = false;
-    console.log('PASS installed Home and shared editor Open/Save/Save As/reopen/stale conflict, xterm keyboard/refresh/confirmed End; unique canaries retained in Home');
+    console.log('PASS installed Home and shared editor Open/Save/Save As/reopen/stale conflict, 480-key sustained terminal input/refresh/confirmed End; unique canaries retained in Home');
   } finally {
     // Close only our view; never implicitly End an uncertain/user session.
     if (sessionCreated) console.error('Canary terminal may remain detached; no automatic destructive cleanup');

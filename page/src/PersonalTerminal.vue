@@ -8,6 +8,7 @@ const target=ref(),sessions=ref([]),selected=ref(props.config?.sessionId??''),se
 const view=createDesktopId(),controller=ref(false);
 let terminal,live=true,timer,sequence=0,input='',sending=false,inputTimer,epoch=0;
 let pollingGeneration=null,wakeOutput=false,lastActivity=0,lastLease=0;
+let inputAbort=new AbortController();
 function requestOutput(){
   if(!live||!props.active||!selected.value)return;
   clearTimeout(timer);wakeOutput=true;void poll(epoch,selected.value);
@@ -17,8 +18,8 @@ function scheduleInput(){
   if(!inputTimer&&!sending&&input&&live&&props.active&&controller.value)
     inputTimer=setTimeout(()=>{inputTimer=undefined;void send();},25);
 }
-const call=(operation,args={})=>props.host.personal.operation(operation,
-  operation!=='terminal.list'&&operation!=='terminal.create'&&selectedGeneration.value?{...args,generation:selectedGeneration.value}:args);
+const call=(operation,args={},signal)=>props.host.personal.operation(operation,
+  operation!=='terminal.list'&&operation!=='terminal.create'&&selectedGeneration.value?{...args,generation:selectedGeneration.value}:args,signal);
 const remember=()=>props.host.rememberTerminal?.(props.instanceId,{sessionId:selected.value,generation:selectedGeneration.value});
 const error=e=>{if(live){status.value=e.message;controller.value=false;if(terminal)terminal.options.disableStdin=true;}};
 async function inventory(){if(!props.active)return;try{const value=await call('terminal.list');if(live&&props.active)sessions.value=value.sessions;}catch(e){error(e);}}
@@ -62,6 +63,7 @@ async function poll(generation,id){
   finally{if(pollingGeneration===generation)pollingGeneration=null;}
 }
 async function detach(){
+  inputAbort.abort();inputAbort=new AbortController();
   ++epoch;clearTimeout(timer);clearTimeout(inputTimer);inputTimer=undefined;input='';wakeOutput=false;controller.value=false;
   if(terminal)terminal.options.disableStdin=true;
   if(selected.value)try{await call('terminal.detach',{id:selected.value,view});}catch{}
@@ -72,7 +74,7 @@ async function send(){
   if(sending || !input || !controller.value || !props.active)return;
   const value=input,generation=epoch,id=selected.value;input='';sending=true;
   const bytes=new TextEncoder().encode(value);let binary='';for(const byte of bytes)binary+=String.fromCharCode(byte);
-  try{const result=await call('terminal.input',{id,view,data:btoa(binary)});
+  try{const result=await call('terminal.input',{id,view,data:btoa(binary)},inputAbort.signal);
     if(!live||generation!==epoch)return;
     if(result.acceptedBytes!==bytes.length)throw new Error('Input incomplete; not replayed');
     lastActivity=Date.now();requestOutput();

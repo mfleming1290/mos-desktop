@@ -16,6 +16,19 @@ test('personal requests use fixed target, fence identity changes and redact erro
   await assert.rejects(denied.operation('read'),/^Error: operationFailed$/);denied.dispose();
 });
 
+test('shared request pacing cancels queued input before transmission',async()=>{
+  const requests=[];
+  const host=createPersonalHost({storage:{getItem:()=> 'fixture'},fetcher:async(url,options)=>{
+    requests.push(JSON.parse(options.body).operation);return {ok:true,json:async()=>({})};
+  }});
+  await host.operation('health');
+  const abort=new AbortController();
+  const queued=host.operation('terminal.input',{data:'fixture'},abort.signal);
+  abort.abort();
+  await assert.rejects(queued,/cancelled/);
+  assert.deepEqual(requests,['health']);host.dispose();
+});
+
 test('host-connected editor open, save, conflict, dirty guard and disposal', async()=>{
   let text='', stored='document', version='1', delayed;
   const editor={snapshot:()=>({text}),replaceText:value=>{text=value;}};
