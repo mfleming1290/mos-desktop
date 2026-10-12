@@ -157,6 +157,21 @@ The other presentation updates the same canary to verify real cross-view conflic
 Nested file policy is now verified under the revised single-owner Tier1 contract.
 `MOS_TEST_ACCOUNT=matt node tests/personal-nested-live.cjs` exercises installed
 nested folders/write/move/trash/restore/refresh using actual UI interactions.
+### On-demand Home backup
+
+`backup-home.sh` is a root-admin, fixed-path backup helper, not a browser API.
+Installed helper: `/mnt/user/mos-desktop/services/backup-home.sh`.
+Run with `sh /mnt/user/mos-desktop/services/backup-home.sh` on MOS.
+It checks the source/destination filesystem UUIDs and translated Home owner,
+copies only admitted Home to `/mnt/Apps/home-backup/mos-desktop/<UTC timestamp>`,
+and verifies content/metadata against both the live source and an isolated full
+restore copy. Backup directories are root-only; the enclosing folder is unchanged.
+No scheduled execution, purge, live restore, or service interruption is added.
+Incomplete copies remain `.partial` and are not accepted. This is a live file
+backup, not an application-consistent snapshot or a backup of service keys/config.
+The 2026-10-12 backup and isolated restore passed on separate device `/dev/sdb1`;
+the original Home uses `/dev/nvme0n1p2`. Both copies are retained, about 2 GiB total.
+
 Full host reboot/rollback remains untested; safe preflight is configuration proof
 only. Native Battle/human media-quality checks remain separate; Landlock and
 MOS-wide JWT revocation no longer block the homelab completion point.
