@@ -28,7 +28,7 @@ export function createPersonalHost({storage, fetcher = globalThis.fetch} = {}) {
       if (!response.ok) {
         const safe = new Set(['conflict','forbidden','unauthenticated','rateLimited','notFound','backendUnavailable',
           'writeUnavailable','saveCopyRequired','topLevelOnly','capacityExceeded','controlRequired','storageUnavailable',
-          'mutationUnavailable','permissionDenied','invalidDestination']);
+          'mutationUnavailable','permissionDenied','invalidDestination','streamUnavailable']);
         throw new Error(safe.has(value?.error) ? value.error : 'operationFailed');
       }
       return value;

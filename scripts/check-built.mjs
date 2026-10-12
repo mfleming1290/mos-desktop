@@ -7,7 +7,7 @@ const files = readdirSync(directory);
 const manifest = JSON.parse(readFileSync(new URL('manifest.json',directory)));
 assert.deepEqual(manifest, config);
 assert(files.includes('remoteEntry.js'));
-assert(files.every(file => /^(manifest\.json|remoteEntry\.js|(runtime|layout)-[\w-]+\.wasm|__federation_(expose_Plugin|fn_import)-[\w-]+\.js|__federation_expose_Plugin-[\w-]+\.css|(PersonalHome|PersonalTerminal|PersonalEditor)-[\w-]+\.(js|css)|(desktop-controller|desktop-personal|_plugin-vue_export-helper)-[\w-]+\.js)$/.test(file)), 'Unexpected distribution asset');
+assert(files.every(file => /^(manifest\.json|remoteEntry\.js|(runtime|layout)-[\w-]+\.wasm|__federation_(expose_Plugin|fn_import)-[\w-]+\.js|__federation_expose_Plugin-[\w-]+\.css|(PersonalHome|PersonalTerminal|PersonalEditor|PersonalStream)-[\w-]+\.(js|css)|(desktop-controller|desktop-personal|_plugin-vue_export-helper)-[\w-]+\.js)$/.test(file)), 'Unexpected distribution asset');
 const editorIdentity=JSON.parse(readFileSync(new URL('../runtime/editor-identity.json',import.meta.url)));
 for(const [file,digest] of Object.entries(editorIdentity.assets))assert.equal(createHash('sha256').update(readFileSync(new URL(`../runtime/${file}`,import.meta.url))).digest('hex'),digest);
 assert.equal(files.filter(file => file.endsWith('.wasm')).length, 2);
@@ -46,7 +46,7 @@ assert(scripts.includes('import.meta.url'), 'WASM URL must be module-relative');
 const standalone=new URL('../page/dist/standalone/',import.meta.url);
 const standaloneFiles=readdirSync(standalone);
 assert(standaloneFiles.includes('standalone.html'));
-assert(standaloneFiles.every(file=>/^(standalone\.html|(runtime|layout)-[\w-]+\.wasm|(standalone|PersonalHome|PersonalTerminal|PersonalEditor)-[\w-]+\.(js|css))$/.test(file)));
+assert(standaloneFiles.every(file=>/^(standalone\.html|(runtime|layout)-[\w-]+\.wasm|(standalone|PersonalHome|PersonalTerminal|PersonalEditor|PersonalStream)-[\w-]+\.(js|css))$/.test(file)));
 for(const file of standaloneFiles)assert(!forbidden.test(readFileSync(new URL(file,standalone)).toString('latin1')),`Private path or secret pattern in standalone/${file}`);
 for(const prefix of ['runtime','layout']){
   const file=standaloneFiles.find(name=>name.startsWith(prefix+'-')&&name.endsWith('.wasm'));

@@ -20,6 +20,13 @@ Commands:
 
 Coverage: real mouse move/resize/release and Escape cancellation; dock preview/apply; tab/taskbar activation and applied Clock configuration; keyboard move/focus/minimize/close; freeform restoration; minimized state; full page refresh recovery. Unfinished edits are checked across arrangement changes, not promised to persist across reload before Apply.
 
+Owner streaming integration is opt-in: set MOS_TEST_ACCOUNT=matt and
+MOS_STREAM_TEST=1, then run `npx playwright test tests/e2e/stream.spec.cjs`.
+It uses real streamed mouse/keyboard input, native Save, viewer denial, takeover,
+network interruption and refresh/relaunch. Existing root@mos SSH performs only
+read-only canary/PID assertions. It retains unique Home canaries, never restarts
+services or ends PTYs. Default non-owner layout runs skip this separate check.
+
 All layout-test contexts block non-read `/api/` requests; no MOS resource controls are exercised. Storage is isolated browser-local, so closing test windows does not modify the human browser's layout. No internal application function, reducer or localStorage writes bypass the UI. Geometry assertions read DOM rectangles in workspace coordinates, not scroll-sensitive screen coordinates.
 
 ## Playwright CLI debugging

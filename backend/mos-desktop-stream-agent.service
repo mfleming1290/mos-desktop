@@ -1,0 +1,31 @@
+[Unit]
+Description=MOS Desktop mutually authenticated stream transport
+Requires=mos-desktop-stream.service
+After=mos-desktop-stream.service network.target
+RequiresMountsFor=/home/matt
+ConditionPathIsMountPoint=/home/matt
+
+[Service]
+Type=simple
+User=matt
+Group=matt
+WorkingDirectory=/home/matt
+EnvironmentFile=/etc/mos-desktop/stream.env
+ExecStart=/opt/mos-desktop/venv/bin/python /opt/mos-desktop/streaming-backend/service.py stream-agent /etc/mos-desktop/stream-agent.json
+Restart=on-failure
+RestartSec=3
+KillMode=control-group
+TimeoutStopSec=10
+UMask=0077
+NoNewPrivileges=true
+ProtectSystem=strict
+ReadWritePaths=/home/matt
+PrivateTmp=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+TasksMax=32
+MemoryMax=128M
+
+[Install]
+WantedBy=multi-user.target

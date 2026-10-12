@@ -6,9 +6,13 @@ import LxcStatus from './desktop-lxc.mjs';
 const PersonalHome=defineAsyncComponent(()=>import('./PersonalHome.vue'));
 const PersonalTerminal=defineAsyncComponent(()=>import('./PersonalTerminal.vue'));
 const PersonalEditor=defineAsyncComponent(()=>import('./PersonalEditor.vue'));
+const PersonalStream=defineAsyncComponent(()=>import('./PersonalStream.vue'));
 
 const capabilities = Object.freeze({movable: true, resizable: true, closable: true, minimizable: true, maximizable: true});
 export const registrations = Object.freeze([
+  {definition:{id:'stream',display_name:'Personal Stream',multiple_instances:true,
+    preferred_size:{width:1000,height:700},minimum_size:{width:400,height:300},capabilities},
+    component:PersonalStream,defaults:{},validate:()=>({code:'success',value:{}})},
   {definition:{id:'editor',display_name:'Personal Editor',multiple_instances:true,
     preferred_size:{width:760,height:520},minimum_size:{width:360,height:260},capabilities},
     component:PersonalEditor,defaults:{},validate:()=>({code:'success',value:{}})},
@@ -30,7 +34,7 @@ export const registrations = Object.freeze([
     component: Clock, defaults: defaultClockConfig, validate: validateClockConfig},
   {definition: {id: 'about', display_name: 'About Desktop', multiple_instances: false,
     preferred_size: {width: 380, height: 260}, minimum_size: {width: 280, height: 180}, capabilities},
-    component: defineComponent({setup: () => () => h('p', 'MOS Desktop uses the Battlemoon WASM runtime. Closing a view does not stop remote applications. Confirmed container controls are limited to the mos-desktop backend. Personal Home and Terminal require the separately installed authenticated bridge; native streaming is not available yet.')}),
+    component: defineComponent({setup: () => () => h('p', 'MOS Desktop uses the Battlemoon WASM runtime. Closing a view does not stop remote applications. Confirmed container controls are limited to the mos-desktop backend. Personal Home, Terminal and Stream require the separately installed authenticated services. Streaming attaches to the scoped personal graphical session; clipboard, uploads and audio are disabled.')}),
     defaults: {}, validate: () => ({code: 'success', value: {}})},
 ]);
 

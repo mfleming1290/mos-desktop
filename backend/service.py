@@ -150,11 +150,16 @@ def bridge_app(config, backend_ssl):
     client = None
     profile_gate = asyncio.Lock()
     next_profile = 0
+    streams = None
 
     async def lifetime(app):
-        nonlocal client
+        nonlocal client, streams
         client = ClientSession(timeout=ClientTimeout(total=8),
                                connector=TCPConnector(limit=8), trust_env=False)
+        if config.get('stream_origin'):
+            from streaming import StreamGateway
+            config['stream_origin'] = secure_url(config['stream_origin'])
+            streams = StreamGateway(config, client, backend_ssl)
         yield
         await client.close()
 
@@ -194,6 +199,9 @@ def bridge_app(config, backend_ssl):
         value = await request.json()
         if not isinstance(value, dict) or not isinstance(value.get('args', {}), dict):
             raise ValueError('invalidRequest')
+        if streams and value.get('operation') in ('stream.attach', 'stream.detach'):
+            method = streams.attach if value['operation'] == 'stream.attach' else streams.detach
+            return web.json_response(await method(value.get('args', {}), authorization))
         if value.get('operation') not in OPERATIONS:
             raise Blocked('forbidden')
         body = {'owner': config['owner_id'], 'generation': config['generation'],
@@ -209,12 +217,17 @@ def bridge_app(config, backend_ssl):
     app = web.Application(middlewares=[errors, capacity_gate()], client_max_size=2 * LIMIT)
     app.cleanup_ctx.append(lifetime)
     app.router.add_post('/desktop-api/v1/operation', dispatch)
+    async def stream(request):
+        if streams is None:
+            raise Blocked('streamUnavailable')
+        return await streams.handle(request)
+    app.router.add_get('/desktop-stream/{ticket}/{path:.*}', stream)
     return app
 
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument('mode', choices=['agent', 'bridge'])
+    parser.add_argument('mode', choices=['agent', 'bridge', 'stream-agent'])
     parser.add_argument('config')
     options = parser.parse_args()
     with open(options.config, encoding='utf-8') as source:
@@ -222,7 +235,7 @@ def main():
     server_ssl = ssl.create_default_context(ssl.Purpose.CLIENT_AUTH)
     server_ssl.minimum_version = ssl.TLSVersion.TLSv1_2
     server_ssl.load_cert_chain(config['certificate'], config['key'])
-    if options.mode == 'agent':
+    if options.mode in ('agent', 'stream-agent'):
         server_ssl.load_verify_locations(config['bridge_ca'])
         server_ssl.verify_mode = ssl.CERT_REQUIRED
         mount_id = config['mount_id']
@@ -243,7 +256,11 @@ def main():
                 raise Blocked('storageUnavailable')
             mount_id = int(matches[0][0])
         home = Home(config['home'], config['uid'], config['device'], mount_id)
-        app = agent_app(config, home)
+        if options.mode == 'stream-agent':
+            from streaming import stream_agent
+            app = stream_agent(config, home)
+        else:
+            app = agent_app(config, home)
     else:
         backend_ssl = ssl.create_default_context(cafile=config['backend_ca'])
         backend_ssl.load_cert_chain(config['bridge_certificate'], config['bridge_key'])

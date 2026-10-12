@@ -78,7 +78,8 @@ POST JSON `{operation,args}` to the bridge. Server supplies owner/generation.
 Agent endpoint `/v1/operation` requires mTLS and matching owner/generation.
 Health, list, read, top-level mkdir and bounded atomic new-file write/upload;
 terminal list, create, attach, detach, output, input, resize, end are allowlisted.
-No delete/trash is exposed, so no operation silently deletes user documents.
+The installed PTY agent still has no delete/trash endpoint. Source adds guarded
+nested mkdir/write, move, trash/list/restore; unsupported containment fails closed.
 Files/requests max1MiB/2MiB; paths max32components; listings page200 and cursor
 max10000; four PTYs,1MiB replay each; eight concurrent requests,8second bridge
 deadline. These are service bounds, not a filesystem quota against the user shell.
@@ -92,7 +93,18 @@ before replacement, the safe read must match or return conflict (including a
 missing target). Replacement creates a new mode0600 inode. This is optimistic
 conflict detection, not compare-and-swap: a terminal/native writer can still race
 between the check and rename. The user explicitly accepted this limitation.
-Nested mutation, move and trash remain unavailable and unmet original requirements.
+Nested mutations execute in short-lived ordinary-user workers with Landlock ABI3+
+confinement beneath the admitted Home. Parent handles still use openat2. Atomic
+NOREPLACE moves never fall back to copy/delete. Only one root is currently admitted;
+no second mount/root was invented for cross-root testing. Trash fsyncs an original
+location receipt before moving the payload into reserved `.mos-desktop-trash`.
+Restore never overwrites conflicts; interrupted moves retain discoverable receipts
+and payloads. No permanent deletion or automatic purge exists.
+Enabled-kernel CI passes nested operations, permission/boundary, native reparent
+containment and interrupted-trash recovery. MOS and the development NAS return
+ENOSYS for Landlock. A live bubblewrap read-only-root/RW-Home probe still allowed
+a held parent handle to escape after native reparenting; that fallback is rejected.
+MOS nested mutation/move/trash therefore remains blocked, not accepted.
 
 Terminal output is base64 bytes with sequence/gap/exited metadata. Input is
 bounded and returns accepted byte count; never automatically replay uncertain
@@ -127,8 +139,54 @@ services or end other sessions. Add MOS_TEST_PRESENTATION=standalone to run the
 same real service workflows through the same-origin standalone entry. Both runs
 exercise480 actual keystrokes, complete echo delivery and retained input control.
 The other presentation updates the same canary to verify real cross-view conflicts.
-Full file/edit policy, logout revocation, full
-host reboot/rollback and streaming remain unaccepted. Safe preflight
-checks establish configuration only. Streaming cannot qualify until admission is
-accepted and Selkies installation in this LXC is separately approved. STREAM2
-retains its full STREAM1 dependency; no new display or unrelated service is started.
+Nested file policy, logout revocation and full host reboot/rollback remain
+unaccepted. Safe preflight checks establish configuration only. STREAM2 retains
+its full STREAM1 dependency; functional streaming does not waive missing file
+containment or native Battle/human media-quality acceptance.
+
+## Approved Selkies installation and scoped streaming
+
+User approval covers installation in this LXC, not extra host permissions,
+identity changes or unrelated services. The supplied2.0.0 AppImage SHA256 is
+`8dcdbe239dc8930545819aae510c45283cf25922250b6b7348ff2fd790c41ed8`.
+It is extracted under `/opt/selkies-8dcdbe239dc8`. The launcher uses the bundled
+executable directly, not AppRun's unauthenticated display startup. LXC-only
+dependencies are Xvfb, x11-apps, openbox, x11-utils and their resolved libraries.
+These persist in container rootfs; no MOS host package/account was changed.
+The private X display uses Xauthority, no TCP listener, CPU/JPEG capture and no
+GPU/uinput grant.
+
+`mos-desktop-stream.service` owns Xvfb/Openbox/xedit/Selkies as existing matt.
+Selkies listens only on127.0.0.1:18031. `mos-desktop-stream-agent.service` is a
+separate mTLS proxy with existing owner/generation/Home admission on18445.
+Separate code lives under `/opt/mos-desktop/streaming-backend`; existing personal
+agent/PTY processes are not restarted. Protected stream.env holds random native
+controller/viewer passwords, never MOS credentials. Native Selkies enforces the
+view-only ceiling. Commands, clipboard, uploads, public sharing, audio,
+microphone, camera and gamepad input are disabled/locked. Shared viewer support
+is enabled only to permit the authenticated second view.
+
+Bridge stream_origin is one fixed HTTPS origin. Authenticated stream.attach
+issues a random256-bit capability for up to four views. Fresh MOS profile checks
+renew its20-second lease. This is bounded lease authentication, not per-frame
+MOS verification or JWT revocation. Takeover demotes/ disconnects old controllers;
+the frontend remounts when roles change. Closing/disconnecting a view does not
+terminate the native application.
+
+The persistent nginx hook adds HTTPS-only `^~ /desktop-stream/`, with access logs
+and buffering disabled, MOS credentials/cookies stripped, verified bridge TLS
+and WebSocket upgrades. Generic static asset regex routes must not override it.
+The opaque sandbox cannot read parent MOS storage. Ephemeral in-frame Web Storage
+supplies preferences only. Capability URLs are neither persisted nor logged.
+The fixed transport allowlist excludes file/upload/command APIs.
+
+Installed0.2.13 browser checks pass native mouse/keyboard Save, viewer denial,
+takeover/old-controller denial, forbidden APIs/origins, iframe storage isolation,
+disconnect/reconnect, offline/online recovery and refresh/relaunch. Native xedit
+PID stays unchanged. Real mTLS no-certificate rejection and wrong-owner403 pass.
+Audio stays disabled; the upstream client emits an AudioDecoder-unavailable
+warning in the opaque sandbox, but JPEG/input works. No audio, hardware-encoding,
+host-reboot or subjective media-quality acceptance is implied.
+Run MOS_TEST_ACCOUNT=matt and MOS_STREAM_TEST=1 with
+`npx playwright test tests/e2e/stream.spec.cjs`. Existing root@mos SSH is used only
+for read-only canary/PID assertions. Tests retain unique canaries, never end PTYs.
