@@ -180,7 +180,7 @@ The opaque sandbox cannot read parent MOS storage. Ephemeral in-frame Web Storag
 supplies preferences only. Capability URLs are neither persisted nor logged.
 The fixed transport allowlist excludes file/upload/command APIs.
 
-Installed0.2.13 browser checks pass native mouse/keyboard Save, viewer denial,
+Installed0.2.14 browser checks pass native mouse/keyboard Save, viewer denial,
 takeover/old-controller denial, forbidden APIs/origins, iframe storage isolation,
 disconnect/reconnect, offline/online recovery and refresh/relaunch. Native xedit
 PID stays unchanged. Real mTLS no-certificate rejection and wrong-owner403 pass.

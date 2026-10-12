@@ -33,10 +33,14 @@ const presentation=process.env.MOS_TEST_PRESENTATION==='standalone'
     stage = 'Save';
     await home.getByLabel('Plain-text preview / new document').fill(text + ' saved');
     await home.getByRole('button', { name: 'Save opened file', exact: true }).click();
+    stage = 'Save acknowledgement';
     await home.getByText('Document saved', { exact: true }).waitFor();
+    stage = 'Save reopen';
     await file.click();
     await home.getByText('Document opened', { exact: true }).waitFor();
+    stage = 'Save reopened content';
     assert.equal(await home.getByLabel('Plain-text preview / new document').inputValue(), text + ' saved');
+    stage = 'cross-presentation Home';
     const secondPage = await context.newPage();
     // The other presentation must observe the same backend file and conflicts.
     await secondPage.goto(baseURL + (presentation==='/plugins/desktop'
@@ -48,9 +52,11 @@ const presentation=process.env.MOS_TEST_PRESENTATION==='standalone'
     await other.getByRole('button', { name: filename + ' (file)', exact: true }).click();
     await other.getByText('Document opened', { exact: true }).waitFor();
     await other.getByLabel('Plain-text preview / new document').fill('second view update');
+    stage = 'cross-presentation Save';
     await other.getByRole('button', { name: 'Save opened file', exact: true }).click();
     await other.getByText('Document saved', { exact: true }).waitFor();
     await secondPage.close();
+    stage = 'cross-presentation conflict';
     await home.getByLabel('Plain-text preview / new document').fill('retained stale edit');
     await home.getByRole('button', { name: 'Save opened file', exact: true }).click();
     await home.getByText('conflict', { exact: true }).waitFor();

@@ -130,7 +130,10 @@ async function reconcileFocus() {
   if (frame && !frame.contains(document.activeElement)) (target?.isConnected && frame.contains(target) ? target : frame.querySelector('[data-title]')).focus();
   else if (!frame) surface.value?.focus();
 }
-const focusWindow = id => action(() => accepted(controller.dispatch('focus_window', id)));
+// Refocusing the active window during pointer-down can scroll its remembered
+// descendant before pointer-up, retargeting the user's click.
+const focusWindow = id => focused.value === id ? Promise.resolve()
+  : action(() => accepted(controller.dispatch('focus_window', id)));
 const presentation = (id, value) => action(() => accepted(controller.dispatch('set_presentation', {window_id: id, presentation: value})));
 function remember(id, event) {descendants.set(id, event.target);if (focused.value !== id && ready.value) focusWindow(id);}
 function updateConfig(window, event) {

@@ -52,7 +52,8 @@ test('scoped stream input ownership, native save and view recovery',async({conte
   await expect.poll(()=>nativeRead(path)).toContain('TAKEOVER_ACCEPTED');
   expect(nativeRead(path)).not.toContain('FORBIDDEN_OLD_CONTROLLER');
   await viewer.article.getByRole('button',{name:'Disconnect stream',exact:true}).click();
-  expect((await context.request.get(viewer.frame.url())).status()).toBe(403);
+  // Detach traverses the same authenticated request pacing as other operations.
+  await expect.poll(async()=>(await context.request.get(viewer.frame.url())).status()).toBe(403);
   expect(applicationPid()).toBe(originalPid);
   await viewer.article.getByRole('button',{name:'Take stream input control',exact:true}).click();
   await viewer.page.waitForTimeout(2000);
