@@ -18,7 +18,7 @@ const server=spawn(process.execPath,[path.join(__dirname,'../page/node_modules/v
   const page=await context.newPage();
   page.on('pageerror',error=>console.error('Local fixture page error:',error.message));
   const calls=[],files=new Map(),sessions=[];
-  let ended=0;
+  let ended=0,echo='',outputSequence=1,inputActive=0,maxInputActive=0;
   await page.addInitScript(()=>localStorage.setItem('authToken','isolated-fixture-not-a-MOS-credential'));
   await page.route('**/desktop-api/v1/operation',async route=>{
     const {operation,args}=route.request().postDataJSON();calls.push({operation,args});
@@ -31,8 +31,12 @@ const server=spawn(process.execPath,[path.join(__dirname,'../page/node_modules/v
     else if(operation==='terminal.list')value={sessions:sessions.map(id=>({id,generation:'fixture-generation',exited:false}))};
     else if(operation==='terminal.create'){sessions.push('fixture-session');value={id:'fixture-session',generation:'fixture-generation'};}
     else if(operation==='terminal.attach')value={controller:true,exited:false};
-    else if(operation==='terminal.output')value={sequence:1,gap:false,exited:false,data:args.after===0?Buffer.from('TERMINAL_READY\r\n').toString('base64'):''};
-    else if(operation==='terminal.input')value={acceptedBytes:Buffer.from(args.data,'base64').length};
+    else if(operation==='terminal.output')value={sequence:outputSequence,gap:false,exited:false,data:args.after<outputSequence?Buffer.from('TERMINAL_READY\r\n'+echo).toString('base64'):''};
+    else if(operation==='terminal.input'){
+      inputActive++;maxInputActive=Math.max(maxInputActive,inputActive);
+      await new Promise(resolve=>setTimeout(resolve,80));
+      echo+=Buffer.from(args.data,'base64').toString();outputSequence++;value={acceptedBytes:Buffer.from(args.data,'base64').length};inputActive--;
+    }
     else if(operation==='terminal.end'){ended++;value={exited:true};}
     await route.fulfill({status,json:value});
   });
@@ -64,6 +68,15 @@ const server=spawn(process.execPath,[path.join(__dirname,'../page/node_modules/v
     await terminal.getByRole('button',{name:'New terminal session',exact:true}).click();
     await terminal.getByText('Connected — input enabled',{exact:true}).waitFor();
     await terminal.locator('.xterm-screen').click();
+    const beforeTyping=calls.filter(c=>c.operation==='terminal.input').length;
+    for(let index=0;index<30;index++){
+      await page.keyboard.press('w');
+      await page.waitForTimeout(15);
+      if(index===14)assert(calls.filter(c=>c.operation==='terminal.input').length>beforeTyping,'Continuous typing must send before typing stops');
+    }
+    await terminal.locator('.xterm-rows').getByText(/wwwwww/).first().waitFor({timeout:350});
+    assert.equal(maxInputActive,1,'Input requests must remain serialized under delayed responses');
+    console.log('PASS sustained typing sends and renders echo while typing, without waiting for idle poll');
     await page.keyboard.type('echo browser-input');await page.keyboard.press('Enter');
     await page.waitForTimeout(250);
     assert(calls.filter(c=>c.operation==='terminal.input').map(c=>Buffer.from(c.args.data,'base64').toString()).join('').includes('echo browser-input'));

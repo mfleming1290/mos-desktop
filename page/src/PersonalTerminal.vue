@@ -7,6 +7,16 @@ const props=defineProps({host:Object,active:Boolean,instanceId:String,config:Obj
 const target=ref(),sessions=ref([]),selected=ref(props.config?.sessionId??''),selectedGeneration=ref(props.config?.generation??''),status=ref('Disconnected'),columns=ref(80),rows=ref(24);
 const view=createDesktopId(),controller=ref(false);
 let terminal,live=true,timer,sequence=0,input='',sending=false,inputTimer,epoch=0;
+let pollingGeneration=null,wakeOutput=false,lastActivity=0,lastLease=0;
+function requestOutput(){
+  if(!live||!props.active||!selected.value)return;
+  clearTimeout(timer);wakeOutput=true;void poll(epoch,selected.value);
+}
+function scheduleInput(){
+  // Fixed deadline from the first queued key, never debounce continuous typing.
+  if(!inputTimer&&!sending&&input&&live&&props.active&&controller.value)
+    inputTimer=setTimeout(()=>{inputTimer=undefined;void send();},25);
+}
 const call=(operation,args={})=>props.host.personal.operation(operation,
   operation!=='terminal.list'&&operation!=='terminal.create'&&selectedGeneration.value?{...args,generation:selectedGeneration.value}:args);
 const remember=()=>props.host.rememberTerminal?.(props.instanceId,{sessionId:selected.value,generation:selectedGeneration.value});
@@ -18,7 +28,7 @@ async function connect(takeover=false){
   try{
     const value=await call('terminal.attach',{id,view,takeover});
     if(!live || generation!==epoch)return;
-    controller.value=value.controller;terminal.options.disableStdin=!value.controller;
+    lastLease=Date.now();controller.value=value.controller;terminal.options.disableStdin=!value.controller;
     status.value=value.exited?'Exited':value.controller?'Connected — input enabled':'Connected — read only';
     if(value.controller)await call('terminal.resize',{id,view,columns:+columns.value,rows:+rows.value});
     clearTimeout(timer);await poll(generation,id);
@@ -26,21 +36,29 @@ async function connect(takeover=false){
 }
 async function poll(generation,id){
   if(!live || !props.active || generation!==epoch)return;
+  if(pollingGeneration===generation){wakeOutput=true;return;}
+  pollingGeneration=generation;wakeOutput=false;
   try{
     const value=await call('terminal.output',{id,after:sequence});
     if(!live || !props.active || generation!==epoch)return;
     if(value.gap)terminal.writeln('\r\n[Earlier output unavailable]');
     terminal.write(Uint8Array.from(atob(value.data),c=>c.charCodeAt(0)));sequence=value.sequence;
+    if(value.data)lastActivity=Date.now();
     if(value.exited){status.value='Exited';terminal.options.disableStdin=true;controller.value=false;return;}
+    if(Date.now()-lastLease>=5000){
     const lease=await call('terminal.attach',{id,view});
     if(!live || generation!==epoch)return;
     controller.value=lease.controller;terminal.options.disableStdin=!lease.controller;
     status.value=lease.controller?'Connected — input enabled':'Connected — read only';
-    timer=setTimeout(()=>poll(generation,id),1000);
-  }catch(e){error(e);}
+    lastLease=Date.now();
+    }
+    clearTimeout(timer);
+    timer=setTimeout(()=>poll(generation,id),wakeOutput?0:Date.now()-lastActivity<500?75:1000);
+  }catch(e){if(generation===epoch)error(e);}
+  finally{if(pollingGeneration===generation)pollingGeneration=null;}
 }
 async function detach(){
-  ++epoch;clearTimeout(timer);clearTimeout(inputTimer);input='';controller.value=false;
+  ++epoch;clearTimeout(timer);clearTimeout(inputTimer);inputTimer=undefined;input='';wakeOutput=false;controller.value=false;
   if(terminal)terminal.options.disableStdin=true;
   if(selected.value)try{await call('terminal.detach',{id:selected.value,view});}catch{}
 }
@@ -48,11 +66,13 @@ async function choose(event){const id=event.target.value;await detach();selected
 async function create(){try{await detach();const value=await call('terminal.create');if(!live)return;selected.value=value.id;selectedGeneration.value=value.generation;remember();sequence=0;terminal.reset();await inventory();await connect();}catch(e){error(e);}}
 async function send(){
   if(sending || !input || !controller.value || !props.active)return;
-  const value=input;input='';sending=true;
+  const value=input,generation=epoch,id=selected.value;input='';sending=true;
   const bytes=new TextEncoder().encode(value);let binary='';for(const byte of bytes)binary+=String.fromCharCode(byte);
-  try{const result=await call('terminal.input',{id:selected.value,view,data:btoa(binary)});
+  try{const result=await call('terminal.input',{id,view,data:btoa(binary)});
+    if(!live||generation!==epoch)return;
     if(result.acceptedBytes!==bytes.length)throw new Error('Input incomplete; not replayed');
-  }catch(e){input='';error(e);}finally{sending=false;if(input && controller.value)inputTimer=setTimeout(send,50);}
+    lastActivity=Date.now();requestOutput();
+  }catch(e){if(generation===epoch){input='';error(e);}}finally{sending=false;scheduleInput();}
 }
 async function end(){
   if(!selected.value || !confirm('End this terminal session? Running jobs may stop.'))return;
@@ -70,7 +90,7 @@ onMounted(()=>{
     if(!controller.value || !props.active)return;
     if(data.length>1 && (/[\r\n]/.test(data)||data.length>1024) && !confirm('Send this paste to the connected personal terminal?'))return;
     if(new TextEncoder().encode(input+data).length>4096){input='';error(new Error('Input capacity exceeded; not sent'));return;}
-    input+=data;clearTimeout(inputTimer);inputTimer=setTimeout(send,50);
+    input+=data;lastActivity=Date.now();scheduleInput();
   });inventory();connect();
 });
 watch(()=>props.active,value=>{if(value){inventory();connect();}else detach();});
