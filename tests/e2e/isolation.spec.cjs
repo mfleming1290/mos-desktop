@@ -17,3 +17,16 @@ test('a clean browser cannot inherit the dedicated authenticated session', async
     await isolated.close();
   }
 });
+
+test('standalone uses MOS authentication and refuses a clean browser', async ({browser,page})=>{
+  const route='/_plugins/desktop/standalone/standalone.html';
+  await page.goto(route);
+  await expect(page.getByText('Runtime ready',{exact:true})).toBeVisible();
+  const isolated=await browser.newContext({baseURL,storageState:{cookies:[],origins:[]}});
+  try{
+    const denied=await isolated.newPage();await denied.goto(route);
+    await expect(denied.getByRole('link',{name:'Open MOS login',exact:true})).toBeVisible();
+    await expect(denied.getByText('Runtime ready',{exact:true})).toHaveCount(0);
+    await expect(denied.getByRole('button',{name:'New Personal Terminal',exact:true})).toHaveCount(0);
+  }finally{await isolated.close();}
+});

@@ -35,6 +35,10 @@ copyFileSync(path.join(root,'runtime/editor-identity.json'),path.join(docs,'edit
 for (const file of readdirSync(path.join(root, 'page/dist/desktop'))) {
   copyFileSync(path.join(root, 'page/dist/desktop', file), path.join(web, file));
 }
+mkdirSync(path.join(web,'standalone'),{mode:0o755});
+for(const file of readdirSync(path.join(root,'page/dist/standalone'))){
+  copyFileSync(path.join(root,'page/dist/standalone',file),path.join(web,'standalone',file));
+}
 writeFileSync(path.join(staging, 'DEBIAN/control'), `Package: mos-desktop-plugin\nVersion: ${config.version}-1+mos-plugin\nArchitecture: all\nMaintainer: mfleming1290\nDescription: MOS Desktop with shared Clock and bounded LXC controls\n`);
 function normalize(directory) {
   for (const entry of readdirSync(directory,{withFileTypes:true})) {

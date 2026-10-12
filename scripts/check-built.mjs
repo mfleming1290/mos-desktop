@@ -43,5 +43,14 @@ const scripts = files.filter(file => file.endsWith('.js')).map(file => readFileS
 assert(!/FixtureEnvelope|lifecycle\.json|sourceMappingURL/.test(scripts), 'Fixtures/source maps must not be distributed');
 assert(!/H:\\code|C:\\Users|@tauri-apps|node:fs|gh[pousr]_[A-Za-z0-9]{20}/.test(scripts));
 assert(scripts.includes('import.meta.url'), 'WASM URL must be module-relative');
+const standalone=new URL('../page/dist/standalone/',import.meta.url);
+const standaloneFiles=readdirSync(standalone);
+assert(standaloneFiles.includes('standalone.html'));
+assert(standaloneFiles.every(file=>/^(standalone\.html|(runtime|layout)-[\w-]+\.wasm|(standalone|PersonalHome|PersonalTerminal|PersonalEditor)-[\w-]+\.(js|css))$/.test(file)));
+for(const file of standaloneFiles)assert(!forbidden.test(readFileSync(new URL(file,standalone)).toString('latin1')),`Private path or secret pattern in standalone/${file}`);
+for(const prefix of ['runtime','layout']){
+  const file=standaloneFiles.find(name=>name.startsWith(prefix+'-')&&name.endsWith('.wasm'));
+  assert(file);assert.equal(hash(readFileSync(new URL(file,standalone))),hash(readFileSync(new URL(file,directory))));
+}
 console.log(JSON.stringify({status: 'PASS', plugin: config.name, version: config.version, files,
   sourceRevision: identity.sourceRevision, wasmSha256: identity.assets['runtime.wasm'], actualMOS: 'NOT RUN'}));

@@ -124,8 +124,9 @@ const server=spawn(process.execPath,[path.join(__dirname,'../page/node_modules/v
     assert((await terminal.locator('.xterm-rows').innerText()).includes('dddddddd'));
     console.log('PASS prolonged fast typing retains control under a 20/s service limit');
     limitRequests=false;
+    const commandSent=page.waitForResponse(response=>response.url().endsWith('/desktop-api/v1/operation')&&response.request().postDataJSON()?.operation==='terminal.input'&&Buffer.from(response.request().postDataJSON().args.data,'base64').toString().includes('\r'));
     await page.keyboard.type('echo browser-input');await page.keyboard.press('Enter');
-    await page.waitForTimeout(250);
+    await commandSent;
     assert(calls.filter(c=>c.operation==='terminal.input').map(c=>Buffer.from(c.args.data,'base64').toString()).join('').includes('echo browser-input'));
     await page.getByText(/Layout saved/).first().waitFor();
     await page.reload();
@@ -144,6 +145,21 @@ const server=spawn(process.execPath,[path.join(__dirname,'../page/node_modules/v
     page.on('dialog',dialog=>dialog.accept());
     await terminal.getByRole('button',{name:'End terminal session',exact:true}).click();
     await terminal.getByText('Session ended',{exact:true}).waitFor();assert.equal(ended,1);
+    const anonymous=await browser.newContext();
+    try{
+      const denied=await anonymous.newPage();
+      await denied.goto('http://127.0.0.1:18046/standalone.html');
+      await denied.getByRole('link',{name:'Open MOS login',exact:true}).waitFor();
+      assert.equal(await denied.getByText('Runtime ready',{exact:true}).count(),0);
+    }finally{await anonymous.close();}
+    const standalone=await context.newPage();
+    await standalone.route('**/api/v1/auth/profile',route=>route.fulfill({json:{id:'fixture-owner'}}));
+    await standalone.goto('http://127.0.0.1:18046/standalone.html');
+    await standalone.getByText('Runtime ready',{exact:true}).waitFor();
+    await standalone.getByRole('button',{name:'New Clock',exact:true}).click();
+    await standalone.getByRole('article',{name:'Clock',exact:true}).waitFor();
+    await standalone.close();
+    console.log('PASS standalone refuses anonymous access and mounts the same desktop after verified profile');
     console.log('PASS local real-browser Home Save As/conflict and xterm keyboard/detach/reattach/explicit end; fixture service only');
   }catch(error){console.error(await page.locator('body').innerText());throw error;
   }finally{await context.close();await browser.close();}

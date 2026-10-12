@@ -1,13 +1,13 @@
 {
   "name": "mos-desktop-page",
-  "version": "0.2.9",
+  "version": "0.2.10",
   "private": true,
   "mosDesktopReleaseReady": true,
   "type": "module",
   "scripts": {
     "prepare:runtime": "node ../scripts/stage-runtime.mjs",
     "test": "node --test ../tests/public-runtime.test.mjs ../tests/desktop-*.test.mjs",
-    "build": "vite build",
+    "build": "vite build && vite build --mode standalone",
     "check:built": "node ../scripts/check-built.mjs",
     "package:local": "node ../scripts/package-local.mjs"
   },

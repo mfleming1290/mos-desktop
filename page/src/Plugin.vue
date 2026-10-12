@@ -2,7 +2,7 @@
 import DesktopShell from './DesktopShell.vue';
 import {ref, onMounted, onUnmounted} from 'vue';
 import {createMosProfileScope} from './desktop-profile.mjs';
-const props = defineProps({verifiedStorageScope: {type: String, default: ''}});
+const props = defineProps({verifiedStorageScope: {type: String, default: ''},requireAuthenticated:{type:Boolean,default:false}});
 const scope = ref(''), initialized = ref(false);
 let storage; try {storage = globalThis.localStorage;} catch {}
 const profile = createMosProfileScope({storage});
@@ -27,6 +27,7 @@ onUnmounted(() => {live = false; generation++; abort?.abort(); clearTimeout(time
 </script>
 
 <template>
-  <DesktopShell v-if="initialized" :key="verifiedStorageScope || scope" :verified-storage-scope="verifiedStorageScope || scope" :can-persist="canPersist" />
+  <DesktopShell v-if="initialized && (!requireAuthenticated || scope)" :key="verifiedStorageScope || scope" :verified-storage-scope="verifiedStorageScope || scope" :can-persist="canPersist" />
+  <section v-else-if="initialized && requireAuthenticated" role="status">Sign in to MOS before opening this desktop. <a href="/login">Open MOS login</a>. Return to this page after signing in.</section>
   <p v-else role="status">Checking MOS profile…</p>
 </template>
