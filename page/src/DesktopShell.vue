@@ -4,7 +4,10 @@ import {createReducer} from './generated/runtime.mjs';
 import wasmUrl from './generated/runtime.wasm?url';
 import {createDesktopController} from './desktop-controller.mjs';
 import {registrations, initializeDesktop, launchApp, revealWindow, closeWindow, accepted} from './desktop-apps.mjs';
-import {previewBounds, recoverBounds} from './desktop-geometry.mjs';
+import {createLayout} from '../../runtime/layout.mjs';
+import layoutWasmUrl from '../../runtime/layout.wasm?url';
+import {createGeometry} from './desktop-sdk-layout.mjs';
+import {createArrangement} from './desktop-arrangement.mjs';
 import {encodeLayout, decodeLayout, createLayoutStorage} from './desktop-layout.mjs';
 import {createMosReadHost} from './desktop-mos.mjs';
 
@@ -14,8 +17,14 @@ const surface = ref(), snapshot = shallowRef(), status = ref('Loading runtime…
 const ready = ref(false), layoutStatus = ref('Temporary layout'), canRetrySave = ref(false);
 const area = shallowRef({width: 800, height: 520}), preview = shallowRef(null);
 const configs = shallowRef(new Map()), activePage = ref(true), failures = shallowRef(new Map());
+const drafts = shallowRef(new Map());
 const abort = new AbortController();
 let controller, observer, gesture, persistence, live = true, saving = false, measured = false, actions = Promise.resolve();
+let geometry, arrangements;
+const arrangement = shallowRef(null), layoutProjection = shallowRef(null);
+const dockPreview = shallowRef(null);
+const recoverBounds=(...args)=>geometry.recover(...args);
+const previewBounds=(...args)=>geometry.preview(...args);
 const frames = new Map(), descendants = new Map();
 let mosStorage; try {mosStorage = globalThis.localStorage;} catch {}
 const host = Object.freeze({...createMosReadHost({storage: mosStorage}), readTime: async (_id, cancellation) => cancellation.aborted
@@ -27,15 +36,63 @@ const windows = computed(() => {
 });
 const focused = computed(() => snapshot.value?.workspaces[0]?.focusedWindowId);
 const registration = window => registrations.find(r => r.definition.id === snapshot.value.apps.find(a => a.id === window.appInstanceId)?.definitionId);
-const shown = window => window.visible && window.presentation.kind !== 'MINIMIZED';
+const shown = window => window.visible && window.presentation.kind !== 'MINIMIZED'
+  && (layoutProjection.value?.views.find(v=>v.view===window.id)?.active ?? true);
 const config = window => configs.value.get(window.appInstanceId) ?? registration(window).defaults;
+const fields = window => drafts.value.get(window.appInstanceId) ?? config(window);
+function rememberDraft(window,event) {
+  const form=event.currentTarget;
+  drafts.value=new Map(drafts.value).set(window.appInstanceId,{locale:form.elements.locale.value,
+    timeZone:form.elements.timeZone.value,seconds:form.elements.seconds.checked,hour12:form.elements.hour12.checked});
+}
 const frameStyle = window => {
   const bounds = preview.value?.id === window.id ? preview.value.bounds : window.presentation.kind === 'MAXIMIZED'
-    ? {x: 0, y: 0, ...area.value} : window.bounds;
+    ? geometry.workArea(area.value) : window.bounds;
   return {left: `${bounds.x}px`, top: `${bounds.y}px`, width: `${bounds.width}px`, height: `${bounds.height}px`};
 };
 function report(error) {if (live) status.value = error.message ?? 'Desktop action failed';}
-function saveLayout() {if (saving && live && persistence?.writable) persistence.save(encodeLayout(controller.snapshot, configs.value, props.verifiedStorageScope));}
+function saveLayout() {if (saving && live && persistence?.writable) persistence.save(encodeLayout(controller.snapshot, configs.value, props.verifiedStorageScope, arrangement.value),arrangement.value?2:1);}
+async function applyArrangement(candidate) {
+  const current = controller.snapshot.workspaces[0].windowIds.map(id=>controller.snapshot.windows.find(w=>w.id===id));
+  const next = arrangements.sync(candidate,current);
+  const projection = arrangements.project(next,current,area.value,w=>registration(w).definition.minimum_size);
+  if(projection.code==='deferred')return;
+  const commands = projection.views.map(v=>({kind:'set_bounds',value:{window_id:v.view,bounds:v.bounds}}));
+  const eligible = projection.views.filter(v=>v.active && current.some(w=>w.id===v.view && w.visible && w.presentation.kind!=='MINIMIZED'));
+  const currentFocus = controller.snapshot.workspaces[0].focusedWindowId;
+  if(eligible.length && !eligible.some(v=>v.view===currentFocus))commands.push({kind:'focus_window',value:eligible[0].view});
+  if(commands.length)await accepted(controller.dispatchBatch(commands,controller.snapshot.revision,{arrangement:next,projection}));
+  else {arrangement.value=next;layoutProjection.value=projection;}
+}
+const arrange = mode => action(()=>applyArrangement(arrangements.preset(arrangement.value,windows.value,mode)),true,'immediate');
+const undock = () => action(()=>applyArrangement(arrangements.apply(arrangement.value,{kind:'undock',view:focused.value})),true,'immediate');
+function previewDock(side) {
+  try {
+    const target=windows.value.find(w=>w.id!==focused.value && shown(w));
+    if(!target)throw new Error('Open and select two visible windows before docking');
+    const candidate=arrangements.dock(arrangement.value,windows.value,focused.value,target.id,side);
+    const projection=arrangements.project(candidate,windows.value,area.value,w=>registration(w).definition.minimum_size);
+    if(projection.code!=='ready')throw new Error('Workspace is hidden; docking deferred');
+    dockPreview.value={candidate,revision:controller.snapshot.revision,bounds:projection.views.find(v=>v.view===focused.value).bounds};
+  } catch(error){report(error);}
+}
+function commitDock() {
+  const proposed=dockPreview.value;dockPreview.value=null;
+  if(!proposed)return;
+  return action(async()=>{
+    if(controller.snapshot.revision!==proposed.revision)throw new Error('Dock preview is stale; preview again');
+    await applyArrangement(proposed.candidate);
+  },true,'immediate');
+}
+const commitBounds = (id,bounds) => arrangement.value
+  ? applyArrangement(arrangements.apply(arrangement.value,{kind:'floating',view:id,bounds}))
+  : accepted(controller.dispatch('set_bounds',{window_id:id,bounds}));
+function activateWindow(id) {return action(async()=>{
+  const view=layoutProjection.value?.views.find(v=>v.view===id);
+  if(view && !view.active && arrangement.value?.mode==='tiled')
+    await applyArrangement(arrangements.apply(arrangement.value,{kind:'tree',operation:{kind:'select',node:view.group,view:id}}));
+  await revealWindow(controller,id);
+});}
 function measureArea() {
   const width = surface.value?.clientWidth, height = surface.value?.clientHeight;
   if (!(width > 0 && height > 0)) return false;
@@ -43,6 +100,7 @@ function measureArea() {
 }
 async function recoverWindows() {
   if (!measured) return; // A hidden/unmeasured mount must not rewrite saved geometry.
+  if(arrangement.value){await applyArrangement(arrangement.value);return;}
   for (const window of windows.value) {
     if (!live || window.presentation.kind !== 'NORMAL') continue;
     const bounds = recoverBounds(window.bounds, registration(window).definition.minimum_size, area.value);
@@ -74,6 +132,7 @@ function updateConfig(window, event) {
   const result = registration(window).validate(next);
   if (result.code !== 'success') {report(new Error(result.message)); return;}
   configs.value = new Map(configs.value).set(window.appInstanceId, result.value);
+  const nextDrafts=new Map(drafts.value);nextDrafts.delete(window.appInstanceId);drafts.value=nextDrafts;
   saveLayout();
 }
 async function close(id) {
@@ -81,8 +140,10 @@ async function close(id) {
   await closeWindow(controller, id);
   descendants.delete(id);
   if (window) {const next = new Map(configs.value);next.delete(window.appInstanceId);configs.value = next;}
+  if(window){const next=new Map(drafts.value);next.delete(window.appInstanceId);drafts.value=next;}
 }
 function startGesture(window, mode, event) {
+  if(arrangement.value?.mode==='tiled' && layoutProjection.value?.views.some(v=>v.view===window.id && v.group!==window.id))return;
   if (event.button !== 0 || gesture || window.presentation.kind !== 'NORMAL') return;
   if (mode === 'move' && event.target.closest('button, input, select')) return;
   if (!window.capabilities[mode === 'move' ? 'movable' : 'resizable']) return;
@@ -101,10 +162,10 @@ function endGesture(event, commit = false) {
   const current = gesture, bounds = preview.value?.bounds;
   gesture = null; preview.value = null;
   if (current.target.hasPointerCapture?.(current.pointer)) current.target.releasePointerCapture(current.pointer);
-  if (commit && bounds && live) action(() => accepted(controller.dispatch('set_bounds', {window_id: current.id, bounds})), false, 'immediate');
+  if (commit && bounds && live) action(() => commitBounds(current.id,bounds), false, 'immediate');
 }
 function keydown(event) {
-  if (event.key === 'Escape') {endGesture(); return;}
+  if (event.key === 'Escape') {dockPreview.value=null;endGesture(); return;}
   if (!event.altKey && !event.ctrlKey && !event.metaKey && event.target.matches('[data-title], .resize-handle') && event.key.startsWith('Arrow')) {
     const window = windows.value.find(w => frames.get(w.id)?.contains(event.target));
     if (window?.presentation.kind === 'NORMAL') {
@@ -112,7 +173,7 @@ function keydown(event) {
       const mode = event.target.matches('.resize-handle') ? 'resize' : 'move';
       const bounds = previewBounds(window.bounds, event.key === 'ArrowRight' ? 10 : event.key === 'ArrowLeft' ? -10 : 0,
         event.key === 'ArrowDown' ? 10 : event.key === 'ArrowUp' ? -10 : 0, mode, registration(window).definition.minimum_size, area.value);
-      action(() => accepted(controller.dispatch('set_bounds', {window_id: window.id, bounds})), false);
+      action(() => commitBounds(window.id,bounds), false);
     }
     return;
   }
@@ -140,7 +201,15 @@ onMounted(async () => {
     if (!response.ok) throw new Error('Runtime asset unavailable');
     const bytes = new Uint8Array(await response.arrayBuffer()); if (!live) return;
     const reduce = await createReducer(bytes); if (!live) return;
-    controller = createDesktopController(reduce, {onChange: value => {if (live) snapshot.value = value;}});
+    const layoutResponse = await fetch(layoutWasmUrl, {signal: abort.signal, credentials: 'same-origin'});
+    if (!layoutResponse.ok) throw new Error('Layout candidate asset unavailable');
+    const layout = await createLayout(new Uint8Array(await layoutResponse.arrayBuffer()));
+    geometry = createGeometry(layout);arrangements = createArrangement(layout);
+    if (!live) return;
+    controller = createDesktopController(reduce, {onChange: (value,context) => {if (live) {
+      if(context?.arrangement){arrangement.value=context.arrangement;layoutProjection.value=context.projection;}
+      snapshot.value = value;
+    }}});
     await initializeDesktop(controller); if (!live) return;
     status.value = 'Runtime ready';
     let storage;
@@ -163,6 +232,7 @@ onMounted(async () => {
             await accepted(controller.dispatch('set_presentation', {window_id: created.windowId, presentation: saved.presentation}));
             await accepted(controller.dispatch('set_visibility', {window_id: created.windowId, visible: saved.visible}));
           }
+          if(layout.arrangement)await applyArrangement(arrangements.restore(layout.arrangement,mapping));
           const id = mapping.get(layout.focused), target = controller.snapshot.windows.find(w => w.id === id);
           if (target && shown(target)) await accepted(controller.dispatch('focus_window', id));
           layoutStatus.value = layout.skipped.length ? `Layout recovered: ${layout.skipped.join('; ')}` : 'Layout restored.';
@@ -188,6 +258,16 @@ onUnmounted(() => {
 <template>
   <section class="desktop-root" aria-label="MOS Desktop" @keydown="keydown">
     <h1>MOS Desktop</h1>
+    <p class="help">0.2.4 layout test candidate — SDK geometry, tiling, tabs and explicit docking preview.</p>
+    <nav aria-label="Layout arrangement">
+      <button :disabled="!ready" @click="arrange('freeform')">Freeform</button>
+      <button :disabled="!ready" @click="arrange('tiles')">Tile windows</button>
+      <button :disabled="!ready" @click="arrange('tabs')">Tab windows</button>
+      <button :disabled="!ready || !arrangement || arrangement.mode !== 'tiled' || !focused" @click="undock">Undock focused window</button>
+      <button :disabled="!ready || !focused" @click="previewDock('right')">Preview dock right</button>
+      <button :disabled="!ready || !focused" @click="previewDock('tab')">Preview dock tab</button>
+      <template v-if="dockPreview"><button @click="commitDock">Apply dock</button><button @click="dockPreview=null">Cancel dock</button></template>
+    </nav>
     <p role="status">{{ status }}</p>
     <p role="status">{{ layoutStatus }} <button v-if="canRetrySave" @click="action(() => { saveLayout(); persistence.flush(); }, false, false)">Retry autosave</button></p>
     <p class="help">Keyboard: Alt+Shift+Left/Right switches windows; Alt+Shift+M minimizes; Alt+Shift+X closes. Escape cancels a drag.</p>
@@ -209,11 +289,11 @@ onUnmounted(() => {
           <p v-if="failures.has(window.appInstanceId)" role="alert">{{ failures.get(window.appInstanceId) }}</p>
           <component v-else :is="registration(window).component" :instance-id="window.appInstanceId" :host="host"
             :config="config(window)" :active="activePage && shown(window)" />
-          <form v-if="registration(window).definition.id === 'clock'" @submit.prevent="updateConfig(window, $event)">
-            <label>Locale <input name="locale" :value="config(window).locale" maxlength="80"></label>
-            <label>Time zone <input name="timeZone" :value="config(window).timeZone" maxlength="80"></label>
-            <label><input name="seconds" type="checkbox" :checked="config(window).seconds"> Seconds</label>
-            <label><input name="hour12" type="checkbox" :checked="config(window).hour12"> 12-hour</label>
+          <form v-if="registration(window).definition.id === 'clock'" @input="rememberDraft(window,$event)" @submit.prevent="updateConfig(window, $event)">
+            <label>Locale <input name="locale" :value="fields(window).locale" maxlength="80"></label>
+            <label>Time zone <input name="timeZone" :value="fields(window).timeZone" maxlength="80"></label>
+            <label><input name="seconds" type="checkbox" :checked="fields(window).seconds"> Seconds</label>
+            <label><input name="hour12" type="checkbox" :checked="fields(window).hour12"> 12-hour</label>
             <button>Apply Clock settings</button>
           </form>
         </div>
@@ -221,13 +301,15 @@ onUnmounted(() => {
           @pointerdown.stop="startGesture(window, 'resize', $event)" @pointermove="moveGesture" @pointerup="endGesture($event, true)"
           @pointercancel="endGesture($event)" @lostpointercapture="endGesture($event)">↘</button>
       </article>
+      <div class="reserved-strip" aria-label="Reserved shell strip">SDK reserved shell strip — 24px</div>
+      <div v-if="dockPreview" class="dock-preview" role="status" :style="{left:`${dockPreview.bounds.x}px`,top:`${dockPreview.bounds.y}px`,width:`${dockPreview.bounds.width}px`,height:`${dockPreview.bounds.height}px`}">Dock preview — Apply or Escape to cancel</div>
     </div>
     <nav class="desktop-taskbar" aria-label="Applications">
       <button v-for="app in registrations" :key="app.definition.id" :disabled="!ready"
         @click="action(() => launchApp(controller, app.definition.id))">New {{ app.definition.display_name }}</button>
       <span aria-hidden="true">|</span>
       <button v-for="window in windows" :key="window.id" :aria-pressed="focused === window.id"
-        @click="action(() => revealWindow(controller, window.id))">{{ window.title }}{{ shown(window) ? '' : ' (minimized)' }}</button>
+        @click="activateWindow(window.id)">{{ window.title }}{{ window.presentation.kind === 'MINIMIZED' ? ' (minimized)' : '' }}</button>
     </nav>
   </section>
 </template>
@@ -246,4 +328,6 @@ button:focus-visible,input:focus-visible{outline:2px solid #f8d675;outline-offse
 form{display:grid;gap:6px;margin-top:12px}label{display:block;font-size:.85rem}input:not([type=checkbox]){box-sizing:border-box;width:100%}
 .resize-handle{position:absolute;right:0;bottom:0;touch-action:none;cursor:nwse-resize;padding:0 4px}
 .desktop-taskbar{display:flex;gap:6px;align-items:center;flex-wrap:wrap;min-height:44px;padding-top:8px}
+.reserved-strip{position:absolute;bottom:0;left:0;right:0;height:24px;box-sizing:border-box;background:#35465c;font-size:12px;pointer-events:none}
+.dock-preview{position:absolute;box-sizing:border-box;border:3px dashed #f8d675;background:#f8d67522;pointer-events:none;z-index:100;color:#fff}
 </style>

@@ -1,0 +1,33 @@
+{
+  "name": "mos-desktop",
+  "version": "1.0.0",
+  "allowScripts": {
+    "@playwright/test": true
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.64.0"
+  },
+  "description": "One MOS-first application, eventually presented through the MOS plugin and an authenticated standalone browser route. Both will share host-owned session state. Neither frontend owns native process lifetime.",
+  "main": "index.js",
+  "directories": {
+    "test": "tests"
+  },
+  "scripts": {
+    "test": "npm --prefix page test",
+    "test:e2e": "playwright test",
+    "test:e2e:auth": "playwright test --project=auth",
+    "test:e2e:list": "playwright test --list"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/mfleming1290/mos-desktop.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/mfleming1290/mos-desktop/issues"
+  },
+  "homepage": "https://github.com/mfleming1290/mos-desktop#readme"
+}

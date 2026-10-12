@@ -7,8 +7,12 @@ const files = readdirSync(directory);
 const manifest = JSON.parse(readFileSync(new URL('manifest.json',directory)));
 assert.deepEqual(manifest, config);
 assert(files.includes('remoteEntry.js'));
-assert(files.every(file => /^(manifest\.json|remoteEntry\.js|runtime-[\w-]+\.wasm|__federation_(expose_Plugin|fn_import)-[\w-]+\.js|__federation_expose_Plugin-[\w-]+\.css)$/.test(file)), 'Unexpected distribution asset');
-assert.equal(files.filter(file => file.endsWith('.wasm')).length, 1);
+assert(files.every(file => /^(manifest\.json|remoteEntry\.js|(runtime|layout)-[\w-]+\.wasm|__federation_(expose_Plugin|fn_import)-[\w-]+\.js|__federation_expose_Plugin-[\w-]+\.css)$/.test(file)), 'Unexpected distribution asset');
+assert.equal(files.filter(file => file.endsWith('.wasm')).length, 2);
+const layoutIdentity=JSON.parse(readFileSync(new URL('../runtime/layout-identity.json',import.meta.url)));
+for(const [file,digest] of Object.entries(layoutIdentity.assets))assert.equal(createHash('sha256').update(readFileSync(new URL(`../runtime/${file}`,import.meta.url))).digest('hex'),digest);
+const layoutFile=files.find(file=>/^layout-.*\.wasm$/.test(file));
+assert.equal(createHash('sha256').update(readFileSync(new URL(layoutFile,directory))).digest('hex'),layoutIdentity.assets['layout.wasm']);
 assert(!files.some(file => /__federation_shared_vue/.test(file)), 'Host Vue must not be bundled');
 const identity = JSON.parse(readFileSync(new URL('../page/src/generated/identity.json',import.meta.url)));
 assert.deepEqual(Object.keys(identity.assets).sort(), ['runtime.mjs','runtime.wasm']);
@@ -27,7 +31,7 @@ for (const [name, filename, digest] of [
 for (const [file, expected] of Object.entries(identity.assets)) {
   assert.equal(hash(readFileSync(new URL(`../page/src/generated/${file}`,import.meta.url))), expected);
 }
-const wasmFile = files.find(file => file.endsWith('.wasm'));
+const wasmFile = files.find(file => /^runtime-.*\.wasm$/.test(file));
 assert.equal(hash(readFileSync(new URL(wasmFile,directory))), identity.assets['runtime.wasm']);
 const forbidden = /[HC]:\\(?:code|Users)|\/home\/matt\/|@tauri-apps|node:fs|gh[pousr]_[A-Za-z0-9]{20}/;
 for (const file of files) assert(!forbidden.test(readFileSync(new URL(file,directory)).toString('latin1')), `Private path or secret pattern in ${file}`);

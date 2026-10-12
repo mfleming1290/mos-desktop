@@ -1,6 +1,6 @@
 {
   "name": "mos-desktop-page",
-  "version": "0.2.2",
+  "version": "0.2.4",
   "private": true,
   "mosDesktopReleaseReady": true,
   "type": "module",

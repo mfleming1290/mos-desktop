@@ -27,6 +27,8 @@ const docs = path.join(staging,'usr/share/doc/mos-desktop-plugin');
 mkdirSync(docs, {recursive:true,mode:0o755});
 copyFileSync(path.join(root,'page/src/generated/THIRD-PARTY-NOTICES.txt'),path.join(docs,'THIRD-PARTY-NOTICES.txt'));
 copyFileSync(path.join(root,'page/src/generated/identity.json'),path.join(docs,'runtime-provenance.json'));
+copyFileSync(path.join(root,'runtime/LAYOUT-NOTICES.txt'),path.join(docs,'LAYOUT-NOTICES.txt'));
+copyFileSync(path.join(root,'runtime/layout-identity.json'),path.join(docs,'layout-provenance.json'));
 for (const file of readdirSync(path.join(root, 'page/dist/desktop'))) {
   copyFileSync(path.join(root, 'page/dist/desktop', file), path.join(web, file));
 }

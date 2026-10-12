@@ -3,3 +3,11 @@ page/node_modules/
 page/dist/
 page/src/generated/
 artifacts/
+# Playwright CLI output (may contain credentials)
+.playwright-cli/
+.env.test
+node_modules/
+.playwright/
+test-results/
+playwright-report/
+output/playwright/

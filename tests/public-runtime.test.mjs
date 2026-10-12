@@ -12,7 +12,76 @@ const remote=await import('../page/dist/desktop/remoteEntry.js');
 const factory=await remote.get('./Plugin');
 const module=factory(),Page=module.default??module;
 const wasm=readFileSync(new URL('../runtime/runtime.wasm',import.meta.url));
+const layoutWasm=readFileSync(new URL('../runtime/layout.wasm',import.meta.url));
+const assetBytes=url=>/\/layout-[^/]+\.wasm$/.test(String(url))?layoutWasm:wasm;
 const flush=async()=>{for(let i=0;i<10;i++){await new Promise(resolve=>setTimeout(resolve,10));await Vue.nextTick();}};
+test('built arrangements retain mounted Clock content, restore tabs and return to floating bounds',async()=>{
+  const proto=dom.window.HTMLElement.prototype;
+  const width=Object.getOwnPropertyDescriptor(proto,'clientWidth'),height=Object.getOwnPropertyDescriptor(proto,'clientHeight');
+  const nav=Object.getOwnPropertyDescriptor(globalThis,'navigator');
+  Object.defineProperty(proto,'clientWidth',{configurable:true,get:()=>2000});
+  Object.defineProperty(proto,'clientHeight',{configurable:true,get:()=>1000});
+  Object.defineProperty(globalThis,'navigator',{configurable:true,value:{locks:{request:(_k,_o,cb)=>cb({})}}});
+  const scope='arrangement-test',key=`mos-desktop:layout:2:${scope}`,legacyKey=`mos-desktop:layout:1:${scope}`;
+  dom.window.localStorage.removeItem(key);
+  dom.window.localStorage.removeItem(legacyKey);
+  globalThis.fetch=async url=>({ok:true,arrayBuffer:async()=>assetBytes(url)});
+  const button=label=>[...document.querySelectorAll('button')].find(b=>b.textContent===label);
+  let app=Vue.createApp(Page,{verifiedStorageScope:scope});
+  try {
+    app.mount('#app');await flush();
+    button('New Clock').click();await flush();button('New Clock').click();await flush();
+    const frames=[...document.querySelectorAll('article')];
+    const ids=frames.map(f=>f.dataset.windowId);
+    const input=frames[0].querySelector('input[name="locale"]');input.value='unsaved draft';
+    input.dispatchEvent(new dom.window.Event('input',{bubbles:true}));await Vue.nextTick();
+    const originalBounds=frames.map(f=>({left:f.style.left,top:f.style.top,width:f.style.width,height:f.style.height}));
+    await new Promise(resolve=>setTimeout(resolve,250));
+    const legacy=dom.window.localStorage.getItem(legacyKey);assert.ok(legacy);
+    button('Preview dock right').click();await flush();
+    assert.match(document.body.textContent,/Dock preview — Apply or Escape/);
+    assert.equal(dom.window.localStorage.getItem(key),null);
+    document.querySelector('.desktop-root').dispatchEvent(new dom.window.KeyboardEvent('keydown',{key:'Escape',bubbles:true}));await flush();
+    assert.equal(document.querySelector('.dock-preview'),null);
+    assert.equal(dom.window.localStorage.getItem(key),null);
+    button('Preview dock right').click();await flush();button('Apply dock').click();await flush();
+    assert.equal(document.querySelectorAll('article:not([hidden])').length,2);
+    assert.equal(JSON.parse(dom.window.localStorage.getItem(key)).arrangement.tiled.root.kind,'split');
+    button('Freeform').click();await flush();
+    button('Tab windows').click();await flush();
+    assert.equal(document.querySelectorAll('article:not([hidden])').length,1);
+    assert.equal(frames[0].querySelector('input[name="locale"]'),input);
+    assert.equal(input.value,'unsaved draft');
+    assert.deepEqual([...document.querySelectorAll('article')].map(f=>f.dataset.windowId),ids);
+    const record=JSON.parse(dom.window.localStorage.getItem(key));
+    assert.equal(record.schemaVersion,2);assert.equal(record.arrangement.mode,'tiled');
+    assert.equal(record.arrangement.tiled.root.kind,'tabs');
+    assert.equal(dom.window.localStorage.getItem(legacyKey),legacy);
+    button('Freeform').click();await flush();
+    assert.deepEqual(frames.map(f=>({left:f.style.left,top:f.style.top,width:f.style.width,height:f.style.height})),originalBounds);
+    button('Tile windows').click();await flush();
+    assert.equal(document.querySelectorAll('article:not([hidden])').length,2);
+    assert.equal(frames[0].querySelector('input[name="locale"]'),input);
+    button('Tab windows').click();await flush();
+    app.unmount();app=Vue.createApp(Page,{verifiedStorageScope:scope});app.mount('#app');await flush();
+    assert.equal(document.querySelectorAll('article').length,2);
+    assert.equal(document.querySelectorAll('article:not([hidden])').length,1);
+    assert.match(document.body.textContent,/Layout restored/);
+    document.querySelector('article:not([hidden]) [aria-label="Minimize"]').click();await flush();
+    const minimized=[...document.querySelectorAll('[aria-label="Applications"] button')].find(b=>b.textContent.includes('(minimized)'));
+    assert.ok(minimized);
+    button('Freeform').click();await flush();
+    assert.equal(document.querySelectorAll('article:not([hidden])').length,1);
+    minimized.click();await flush();
+    button('Freeform').click();await flush();
+    assert.equal(document.querySelectorAll('article:not([hidden])').length,2);
+  } finally {
+    app.unmount();dom.window.localStorage.removeItem(key);dom.window.localStorage.removeItem(legacyKey);
+    if(width)Object.defineProperty(proto,'clientWidth',width);else delete proto.clientWidth;
+    if(height)Object.defineProperty(proto,'clientHeight',height);else delete proto.clientHeight;
+    if(nav)Object.defineProperty(globalThis,'navigator',nav);else delete globalThis.navigator;
+  }
+});
 test('built LXC panel reads once, pauses hidden work, rejects late data and closes without mutations', async () => {
   const before = Object.getOwnPropertyDescriptor(globalThis, 'localStorage');
   const storage = dom.window.localStorage;
@@ -25,7 +94,7 @@ test('built LXC panel reads once, pauses hidden work, rejects late data and clos
       if (requests.length > 1) return new Promise(resolve => {late = resolve;});
       return {ok: true, json: async () => [{name: 'test-lxc', state: 'running', unprivileged: true}]};
     }
-    return {ok: true, arrayBuffer: async () => wasm};
+    return {ok: true, arrayBuffer: async () => assetBytes(url)};
   };
   const app = Vue.createApp(Page);
   try {
@@ -52,7 +121,7 @@ test('built backend controls require confirmation and exclude old and unrelated 
     if (String(url) === '/api/v1/auth/profile') return {ok: true, json: async () => ({id: 'admin'})};
     if (options.method === 'POST') {mutations.push(String(url)); return {ok: true};}
     if (String(url).includes('/lxc/')) return {ok: true, json: async () => ['mos-desktop', 'testit', 'code'].map(name => ({name, state: 'running', unprivileged: true}))};
-    return {ok: true, arrayBuffer: async () => wasm};
+    return {ok: true, arrayBuffer: async () => assetBytes(url)};
   };
   const app = Vue.createApp(Page);
   const button = label => [...document.querySelectorAll('button')].find(b => b.textContent === label);
@@ -74,7 +143,7 @@ test('HTTP-compatible crypto supports startup and distinct app identities withou
   const before = Object.getOwnPropertyDescriptor(globalThis, 'crypto');
   const secure = globalThis.crypto;
   Object.defineProperty(globalThis, 'crypto', {configurable: true, value: {getRandomValues: secure.getRandomValues.bind(secure)}});
-  globalThis.fetch = async () => ({ok: true, arrayBuffer: async () => wasm});
+  globalThis.fetch = async (url) => ({ok: true, arrayBuffer: async () => assetBytes(url)});
   const app = Vue.createApp(Page);
   try {
     app.mount('#app'); await flush(); assert.match(document.body.textContent, /Runtime ready/);
@@ -94,7 +163,7 @@ test('wide workspace restores corners and autosaves completed drags without a sa
   dom.window.localStorage.setItem(key, JSON.stringify({schemaVersion: 1, scope: 'corner-test', focused: 'old', windows: [
     {key: 'old', definitionId: 'clock', bounds: {x: 1550, y: 580, width: 340, height: 220}, presentation: 'normal', visible: true, config: {locale: 'en-GB', timeZone: 'UTC', seconds: true, hour12: false}},
   ]}));
-  globalThis.fetch = async () => ({ok: true, arrayBuffer: async () => wasm});
+  globalThis.fetch = async (url) => ({ok: true, arrayBuffer: async () => assetBytes(url)});
   const app = Vue.createApp(Page, {verifiedStorageScope: 'corner-test'});
   try {
     app.mount('#app'); await flush();
@@ -133,7 +202,7 @@ test('failed autosave preserves the record and exposes a working retry only afte
   const proto = dom.window.Storage.prototype, original = proto.setItem;
   const key = 'mos-desktop:layout:1:retry-test'; let denied = true;
   proto.setItem = function(k, v) {if (k === key && denied) throw Error('quota'); return original.call(this, k, v);};
-  globalThis.fetch = async () => ({ok: true, arrayBuffer: async () => wasm});
+  globalThis.fetch = async (url) => ({ok: true, arrayBuffer: async () => assetBytes(url)});
   const app = Vue.createApp(Page, {verifiedStorageScope: 'retry-test'});
   try {
     app.mount('#app'); await flush();
@@ -152,12 +221,16 @@ test('failed autosave preserves the record and exposes a working retry only afte
   }
 });
 test('real WASM command and host-only Vue',async()=>{
-  let requested;
-  globalThis.fetch=async(url,options)=>{requested={url,options};return{ok:true,arrayBuffer:async()=>wasm.buffer.slice(wasm.byteOffset,wasm.byteOffset+wasm.byteLength)};};
+  const requests=[];
+  globalThis.fetch=async(url,options)=>{requests.push({url,options});return{ok:true,arrayBuffer:async()=>assetBytes(url)};};
   const app=Vue.createApp(Page);app.mount('#app');await flush();
   assert.match(document.body.textContent,/Runtime ready/);
-  assert.match(String(requested.url),/runtime-.*\.wasm$/);assert.equal(requested.options.credentials,'same-origin');
-  app.unmount();assert.equal(requested.options.signal.aborted,true);
+  assert.equal(requests.length,2);
+  assert.match(String(requests[0].url),/runtime-.*\.wasm$/);
+  assert.match(String(requests[1].url),/layout-.*\.wasm$/);
+  assert(document.querySelector('[aria-label="Reserved shell strip"]'));
+  for(const request of requests)assert.equal(request.options.credentials,'same-origin');
+  app.unmount();for(const request of requests)assert.equal(request.options.signal.aborted,true);
 });
 test('unmount aborts and ignores late asset delivery',async()=>{
   let resolve,signal,consumed=false;
@@ -173,7 +246,7 @@ test('missing or malformed WASM reports unavailable',async()=>{
   }
 });
 test('built desktop keeps Clock sessions stable, suspends minimized content and cleans route timers',async()=>{
-  globalThis.fetch=async()=>({ok:true,arrayBuffer:async()=>wasm});
+  globalThis.fetch=async(url)=>({ok:true,arrayBuffer:async()=>assetBytes(url)});
   const originalSet=globalThis.setInterval,originalClear=globalThis.clearInterval;
   const timers=new Set();let acquired=0;
   globalThis.setInterval=(callback,delay)=>{const timer=originalSet(callback,delay);timers.add(timer);acquired++;return timer;};
@@ -227,7 +300,7 @@ test('built MOS entry verifies profile, isolates accounts and fences pending wri
   let app;
   globalThis.fetch = async (url, options) => String(url) === '/api/v1/auth/profile'
     ? {ok: true, json: async () => ({id: options.headers.Authorization === 'Bearer fixture-a' ? 'account-a' : 'account-b'})}
-    : {ok: true, arrayBuffer: async () => wasm};
+    : {ok: true, arrayBuffer: async () => assetBytes(url)};
   try {
     storage.setItem('authToken', 'fixture-a');
     app = Vue.createApp(Page); app.mount('#app'); await flush();
@@ -248,7 +321,7 @@ test('built MOS entry verifies profile, isolates accounts and fences pending wri
   }
 });
 test('verified host scope restores intentions without remote work and releases storage ownership',async()=>{
-  globalThis.fetch=async()=>({ok:true,arrayBuffer:async()=>wasm});
+  globalThis.fetch=async(url)=>({ok:true,arrayBuffer:async()=>assetBytes(url)});
   let held=false;
   const navigatorBefore=Object.getOwnPropertyDescriptor(globalThis,'navigator');
   Object.defineProperty(globalThis,'navigator',{configurable:true,value:{locks:{request:async(_key,_options,callback)=>{

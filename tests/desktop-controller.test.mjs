@@ -36,3 +36,32 @@ test('disposal fences queued operations and a runtime exception blocks later dis
   await assert.rejects(broken.dispatch('create_workspace', workspace('b')), /unavailable/);
   assert.equal(calls, 1);
 });
+test('batch publishes once; midway rejection and stale batch publish nothing', async () => {
+  const published = [];
+  const controller = createDesktopController(await createReducer(bytes), {aggregateId:'batch', onChange:s=>published.push(s)});
+  const accepted = await controller.dispatchBatch([
+    {kind:'create_workspace', value:workspace('a')},
+    {kind:'create_workspace', value:workspace('b')},
+  ], 0n);
+  assert.equal(accepted.kind,'accepted');
+  assert.equal(controller.snapshot.revision,2n);
+  assert.equal(accepted.value.events.length,2);
+  assert.equal(published.length,1);
+  const before = controller.snapshot;
+  const rejected = await controller.dispatchBatch([
+    {kind:'create_workspace', value:workspace('c')},
+    {kind:'create_workspace', value:workspace('a')},
+  ]);
+  assert.equal(rejected.kind,'rejected');
+  assert.equal(controller.snapshot,before);
+  assert.equal(published.length,1);
+  const stale = await controller.dispatchBatch([{kind:'create_workspace',value:workspace('d')}],0n);
+  assert.equal(stale.kind,'rejected');assert.equal(controller.snapshot,before);
+  const proposal = [{kind:'create_workspace',value:workspace('e')}];
+  const pending = controller.dispatchBatch(proposal);
+  proposal[0].value.id='mutated';
+  assert.equal((await pending).kind,'accepted');
+  assert.ok(controller.snapshot.workspaces.some(w=>w.id==='e'));
+  assert.ok(!controller.snapshot.workspaces.some(w=>w.id==='mutated'));
+  assert.equal(published.length,2);
+});

@@ -1,0 +1,23 @@
+{
+  "candidate": "L1-test-only",
+  "baseline": "b688d2dc8ed994687c7437b71892caa92a115e0e",
+  "sourceState": "reviewed-uncommitted-candidate",
+  "rust": "1.97.1",
+  "features": [],
+  "buildTransform": "remap SDK root to /sdk and user root to /build",
+  "sourceAssets": {
+    "Cargo.toml": "ab9d7325802966804ef94bd1c379629fda1dcea64fc338123f03220374d25115",
+    "Cargo.lock": "5119be3b7c2e11020af1520c838a7a918a474e0514028e6ed42a917f0c1dbf00",
+    "src/lib.rs": "575b052822eba108f41071229bbf492309acc7660ece8b3a4e73328eb553b5e2",
+    "src/grid.rs": "ac030e11b10b5e05aecd5ecdbb954d1c341ae297eeb19d78ef5ca764543f732c",
+    "src/tree.rs": "631e2c6c325d9b04065bda19e13a2efca3e87ceb55a33e4626c40101abb6b9fc",
+    "src/composition.rs": "80ed57495bc2ffdb5432418928698d2b168ef004e4e5f45e00250de54819a222",
+    "src/bridge.rs": "ffd04b332533573074bfab54e0bb12a1acc1733741efee396c90bb47dbf2a0a2",
+    "typescript/layout.ts": "ed0e5ab0562d7f2eca3c7e9866da1cfd97c1e567796869689de722117e57652b"
+  },
+  "assets": {
+    "layout.wasm": "1a2525b4ea8122ebd1ac4e8b85af711c93bd28d84c654aa85364114aa57ddd03",
+    "layout.mjs": "1ca7e2a6ae34b7bbd82d357556a158ba0b6d969cfa3d047db00e27e73270510a",
+    "LAYOUT-NOTICES.txt": "faaebeabbf8d5f002bdd0edf9a0c858147c2cc32aaff341aa2a13363e6cbab46"
+  }
+}

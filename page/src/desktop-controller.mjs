@@ -18,23 +18,40 @@ export function createDesktopController(reduce, {aggregateId = createDesktopId()
   let fault = null;
   let tail = Promise.resolve();
   let sequence = 0;
-  function dispatch(kind, value, expectedRevision) {
+  function dispatchBatch(commands, expectedRevision, publication) {
+    // Capture the caller's proposal before it waits behind another operation.
+    const proposal = structuredClone(commands);
+    const context = publication === undefined ? undefined : structuredClone(publication);
     const operation = tail.then(() => {
       if (disposed) throw new Error('Desktop route disposed');
       if (fault) throw new Error('Desktop runtime unavailable', {cause: fault});
       try {
         // Generated codecs accept decimal strings without rounding signed int64.
-        const command = Command.serializer.fromJsonCode(JSON.stringify({
+        let candidate = snapshot;
+        let finalResult;
+        const events = [];
+        // A batch is validated privately using the existing semantic authority.
+        // Nothing is published if any command rejects. Host persistence remains separate.
+        if (!Array.isArray(proposal) || proposal.length === 0 || proposal.length > 1024)
+          throw new Error('Invalid desktop command batch');
+        for (let index = 0; index < proposal.length; index++) {
+          const {kind, value} = proposal[index];
+          const command = Command.serializer.fromJsonCode(JSON.stringify({
           id: `${aggregateId}:${++sequence}`, aggregate_id: aggregateId,
-          expected_revision: String(expectedRevision ?? snapshot.revision),
+          expected_revision: String(index === 0 ? expectedRevision ?? candidate.revision : candidate.revision),
           payload: {kind, value},
-        }));
-        const result = reduce(aggregateId, snapshot, command);
-        if (result.kind === 'accepted') {
-          snapshot = result.value.snapshot;
-          onChange(snapshot);
+          }));
+          finalResult = reduce(aggregateId, candidate, command);
+          if (finalResult.kind !== 'accepted') return finalResult;
+          candidate = finalResult.value.snapshot;
+          events.push(...finalResult.value.events);
         }
-        return result;
+        snapshot = candidate;
+        onChange(snapshot, context);
+        // Single dispatch retains its generated result type; the host-only batch
+        // receipt accumulates all events without extending the frozen wire API.
+        return proposal.length === 1 ? finalResult : Object.freeze({kind:'accepted',
+          value:Object.freeze({snapshot:candidate,events:Object.freeze(events)})});
       } catch (error) {
         fault = error;
         throw error;
@@ -43,6 +60,7 @@ export function createDesktopController(reduce, {aggregateId = createDesktopId()
     tail = operation.catch(() => {});
     return operation;
   }
-  return {dispatch, get snapshot() {return snapshot;},
+  const dispatch = (kind, value, expectedRevision) => dispatchBatch([{kind, value}], expectedRevision);
+  return {dispatch, dispatchBatch, get snapshot() {return snapshot;},
     get fault() {return fault;}, dispose() {disposed = true;}};
 }
