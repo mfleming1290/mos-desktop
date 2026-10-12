@@ -190,3 +190,6 @@ host-reboot or subjective media-quality acceptance is implied.
 Run MOS_TEST_ACCOUNT=matt and MOS_STREAM_TEST=1 with
 `npx playwright test tests/e2e/stream.spec.cjs`. Existing root@mos SSH is used only
 for read-only canary/PID assertions. Tests retain unique canaries, never end PTYs.
+Native input checks use20ms key spacing and150ms after remote editing shortcuts.
+A zero-delay automation burst raced native cursor movement and split a marker;
+maximum-rate native input ordering/subjective responsiveness is not accepted.

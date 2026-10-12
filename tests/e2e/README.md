@@ -26,6 +26,8 @@ It uses real streamed mouse/keyboard input, native Save, viewer denial, takeover
 network interruption and refresh/relaunch. Existing root@mos SSH performs only
 read-only canary/PID assertions. It retains unique Home canaries, never restarts
 services or ends PTYs. Default non-owner layout runs skip this separate check.
+Native typing uses20ms between keys and150ms after remote editing shortcuts;
+this is functional interaction acceptance, not maximum-rate input benchmarking.
 
 All layout-test contexts block non-read `/api/` requests; no MOS resource controls are exercised. Storage is isolated browser-local, so closing test windows does not modify the human browser's layout. No internal application function, reducer or localStorage writes bypass the UI. Geometry assertions read DOM rectangles in workspace coordinates, not scroll-sensitive screen coordinates.
 
