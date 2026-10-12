@@ -1,0 +1,7 @@
+<!doctype html><html><head><meta charset="UTF-8"><title>Isolated desktop test host</title></head><body><div id="app"></div>
+<script type="module">
+import {createApp,h} from 'vue';
+import DesktopShell from './src/DesktopShell.vue';
+// Development-only host, excluded by the federated distribution allowlist.
+createApp({render:()=>h(DesktopShell)}).mount('#app');
+</script></body></html>

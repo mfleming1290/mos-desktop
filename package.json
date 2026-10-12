@@ -16,7 +16,8 @@
     "test": "npm --prefix page test",
     "test:e2e": "playwright test",
     "test:e2e:auth": "playwright test --project=auth",
-    "test:e2e:list": "playwright test --list"
+    "test:e2e:list": "playwright test --list",
+    "test:personal-ui": "node tests/personal-ui.cjs"
   },
   "repository": {
     "type": "git",

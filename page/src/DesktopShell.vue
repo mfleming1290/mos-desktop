@@ -10,6 +10,7 @@ import {createGeometry} from './desktop-sdk-layout.mjs';
 import {createArrangement} from './desktop-arrangement.mjs';
 import {encodeLayout, decodeLayout, createLayoutStorage} from './desktop-layout.mjs';
 import {createMosReadHost} from './desktop-mos.mjs';
+import {createPersonalHost} from './desktop-personal.mjs';
 
 // Only the trusted host may supply this; never infer it from browser UI or a display name.
 const props = defineProps({verifiedStorageScope: {type: String, default: ''}, canPersist: {type: Function, default: () => true}});
@@ -27,7 +28,9 @@ const recoverBounds=(...args)=>geometry.recover(...args);
 const previewBounds=(...args)=>geometry.preview(...args);
 const frames = new Map(), descendants = new Map();
 let mosStorage; try {mosStorage = globalThis.localStorage;} catch {}
-const host = Object.freeze({...createMosReadHost({storage: mosStorage}), readTime: async (_id, cancellation) => cancellation.aborted
+const personal=createPersonalHost({storage:mosStorage});
+onUnmounted(()=>personal.dispose());
+const host = Object.freeze({personal,...createMosReadHost({storage: mosStorage}), readTime: async (_id, cancellation) => cancellation.aborted
   ? {code: 'cancelled', message: 'Cancelled'} : {code: 'success', value: Date.now()},
   schedule: (callback, interval) => {const timer = setInterval(callback, interval); return () => clearInterval(timer);}});
 const windows = computed(() => {
@@ -258,7 +261,7 @@ onUnmounted(() => {
 <template>
   <section class="desktop-root" aria-label="MOS Desktop" @keydown="keydown">
     <h1>MOS Desktop</h1>
-    <p class="help">0.2.4 layout test candidate — SDK geometry, tiling, tabs and explicit docking preview.</p>
+    <p class="help">0.2.5 layout test candidate — SDK geometry, tiling, tabs and explicit docking preview.</p>
     <nav aria-label="Layout arrangement">
       <button :disabled="!ready" @click="arrange('freeform')">Freeform</button>
       <button :disabled="!ready" @click="arrange('tiles')">Tile windows</button>

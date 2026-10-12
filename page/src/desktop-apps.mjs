@@ -1,11 +1,19 @@
 import {Clock} from '@battlemoon/clock/vue';
 import {defaultClockConfig, validateClockConfig} from '@battlemoon/clock';
-import {defineComponent, h} from 'vue';
+import {defineComponent, defineAsyncComponent, h} from 'vue';
 import {createDesktopId} from './desktop-controller.mjs';
 import LxcStatus from './desktop-lxc.mjs';
+const PersonalHome=defineAsyncComponent(()=>import('./PersonalHome.vue'));
+const PersonalTerminal=defineAsyncComponent(()=>import('./PersonalTerminal.vue'));
 
 const capabilities = Object.freeze({movable: true, resizable: true, closable: true, minimizable: true, maximizable: true});
 export const registrations = Object.freeze([
+  {definition:{id:'home',display_name:'Personal Home',multiple_instances:false,
+    preferred_size:{width:560,height:440},minimum_size:{width:320,height:240},capabilities},
+    component:PersonalHome,defaults:{},validate:()=>({code:'success',value:{}})},
+  {definition:{id:'terminal',display_name:'Personal Terminal',multiple_instances:true,
+    preferred_size:{width:760,height:520},minimum_size:{width:360,height:260},capabilities},
+    component:PersonalTerminal,defaults:{},validate:()=>({code:'success',value:{}})},
   {definition: {id: 'mos-lxc', display_name: 'MOS LXC Status', multiple_instances: false,
     preferred_size: {width: 520, height: 340}, minimum_size: {width: 320, height: 220}, capabilities},
     component: LxcStatus, defaults: {}, validate: () => ({code: 'success', value: {}})},
@@ -14,7 +22,7 @@ export const registrations = Object.freeze([
     component: Clock, defaults: defaultClockConfig, validate: validateClockConfig},
   {definition: {id: 'about', display_name: 'About Desktop', multiple_instances: false,
     preferred_size: {width: 380, height: 260}, minimum_size: {width: 280, height: 180}, capabilities},
-    component: defineComponent({setup: () => () => h('p', 'MOS Desktop uses the Battlemoon WASM runtime. Closing a view does not stop remote applications. Confirmed container controls are limited to the mos-desktop backend. Personal file, terminal and native application services are not available yet.')}),
+    component: defineComponent({setup: () => () => h('p', 'MOS Desktop uses the Battlemoon WASM runtime. Closing a view does not stop remote applications. Confirmed container controls are limited to the mos-desktop backend. Personal Home and Terminal require the separately installed authenticated bridge; native streaming is not available yet.')}),
     defaults: {}, validate: () => ({code: 'success', value: {}})},
 ]);
 

@@ -6,6 +6,7 @@ import config from './plugin.config.js';
 
 export default defineConfig({
   base: './',
+  optimizeDeps: {include:['@xterm/xterm']},
   plugins: [vue(), federation({
     name: config.name, filename: 'remoteEntry.js',
     exposes: {'./Plugin': './src/Plugin.vue'},

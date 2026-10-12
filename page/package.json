@@ -1,6 +1,6 @@
 {
   "name": "mos-desktop-page",
-  "version": "0.2.4",
+  "version": "0.2.5",
   "private": true,
   "mosDesktopReleaseReady": true,
   "type": "module",
@@ -14,6 +14,7 @@
   "dependencies": {
     "@battlemoon/clock": "file:../.cache/components/battlemoon-clock-0.1.1.tgz",
     "@battlemoon/component-contracts": "file:../.cache/components/battlemoon-component-contracts-0.1.1.tgz",
+    "@xterm/xterm": "6.0.0",
     "vue": "3.5.43"
   },
   "devDependencies": {

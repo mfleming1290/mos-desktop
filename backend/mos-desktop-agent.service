@@ -1,0 +1,33 @@
+[Unit]
+Description=MOS Desktop scoped personal files and PTYs
+RequiresMountsFor=/home/matt
+After=local-fs.target network.target
+ConditionPathIsMountPoint=/home/matt
+
+[Service]
+Type=simple
+User=matt
+Group=matt
+WorkingDirectory=/home/matt
+Environment=HOME=/home/matt
+Environment=PATH=/usr/local/bin:/usr/bin:/bin
+ExecStart=/opt/mos-desktop/venv/bin/python /opt/mos-desktop/backend/service.py agent /etc/mos-desktop/agent.json
+Restart=on-failure
+RestartSec=3
+KillMode=control-group
+TimeoutStopSec=10
+UMask=0077
+NoNewPrivileges=true
+ProtectSystem=strict
+ReadWritePaths=/home/matt
+PrivateTmp=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+LimitNOFILE=256
+TasksMax=64
+MemoryMax=256M
+
+[Install]
+WantedBy=multi-user.target

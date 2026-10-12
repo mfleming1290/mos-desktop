@@ -7,7 +7,7 @@ import path from 'node:path';
 import config from '../page/plugin.config.js';
 
 const pkg = JSON.parse(readFileSync(new URL('../page/package.json',import.meta.url)));
-assert.notEqual(pkg.mosDesktopReleaseReady, false, 'M1 development is not approved for packaging as immutable 0.1.0');
+assert.notEqual(pkg.mosDesktopReleaseReady, false, 'Candidate is not approved for immutable packaging');
 assert.equal(process.platform, 'linux', 'Package on the authorized Linux build host');
 const root = fileURLToPath(new URL('../', import.meta.url));
 for (const script of ['stage-runtime.mjs','check-built.mjs']) {
@@ -29,6 +29,7 @@ copyFileSync(path.join(root,'page/src/generated/THIRD-PARTY-NOTICES.txt'),path.j
 copyFileSync(path.join(root,'page/src/generated/identity.json'),path.join(docs,'runtime-provenance.json'));
 copyFileSync(path.join(root,'runtime/LAYOUT-NOTICES.txt'),path.join(docs,'LAYOUT-NOTICES.txt'));
 copyFileSync(path.join(root,'runtime/layout-identity.json'),path.join(docs,'layout-provenance.json'));
+copyFileSync(path.join(root,'runtime/XTERM-NOTICES.txt'),path.join(docs,'XTERM-NOTICES.txt'));
 for (const file of readdirSync(path.join(root, 'page/dist/desktop'))) {
   copyFileSync(path.join(root, 'page/dist/desktop', file), path.join(web, file));
 }
