@@ -24,7 +24,8 @@ PrivateTmp=true
 ProtectKernelTunables=true
 ProtectKernelModules=true
 ProtectControlGroups=true
-RestrictSUIDSGID=true
+# RestrictSUIDSGID returns ENOSYS for openat2 on this host's systemd.
+# Keep NoNewPrivileges and the unprivileged identity; never fall back from openat2.
 LimitNOFILE=256
 TasksMax=64
 MemoryMax=256M

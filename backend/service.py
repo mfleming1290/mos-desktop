@@ -5,6 +5,7 @@ import base64
 import json
 import os
 import ssl
+from pathlib import Path
 from urllib.parse import urlsplit
 
 from aiohttp import ClientError, ClientSession, ClientTimeout, TCPConnector, web
@@ -199,7 +200,24 @@ def main():
     if options.mode == 'agent':
         server_ssl.load_verify_locations(config['bridge_ca'])
         server_ssl.verify_mode = ssl.CERT_REQUIRED
-        home = Home(config['home'], config['uid'], config['device'], config['mount_id'])
+        mount_id = config['mount_id']
+        if 'home_inode' in config:
+            # systemd's filesystem sandbox has namespace-local mount IDs. Admit
+            # the inspected device/inode/mount-root, then pin its local ID.
+            info = os.stat(config['home'], follow_symlinks=False)
+            if info.st_dev != config['device'] or info.st_ino != config['home_inode']:
+                raise Blocked('storageUnavailable')
+            mounts = [line.split() for line in Path('/proc/self/mountinfo').read_text().splitlines()]
+            fd = os.open(config['home'], os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
+            try:
+                local_id = next(line.split()[1] for line in Path(f'/proc/self/fdinfo/{fd}').read_text().splitlines() if line.startswith('mnt_id:'))
+            finally:
+                os.close(fd)
+            matches = [entry for entry in mounts if entry[0] == local_id and entry[4] == config['home'] and entry[3] == config['home_mount_root']]
+            if len(matches) != 1 or matches[0][matches[0].index('-') + 1] != 'btrfs':
+                raise Blocked('storageUnavailable')
+            mount_id = int(matches[0][0])
+        home = Home(config['home'], config['uid'], config['device'], mount_id)
         app = agent_app(config, home)
     else:
         backend_ssl = ssl.create_default_context(cafile=config['backend_ca'])
