@@ -72,6 +72,8 @@ def agent_app(config, home):
         op, args = value['operation'], value.get('args', {})
         if op not in OPERATIONS:
             raise Blocked('forbidden')
+        if config.get('files_only') and op.startswith('terminal.'):
+            raise Blocked('forbidden')
         if op.startswith('terminal.') and args.get('generation', config['generation']) != config['generation']:
             raise Blocked('forbidden')
         home.check()
@@ -80,8 +82,9 @@ def agent_app(config, home):
             if op == 'health':
                 result = {'protocol': 1, 'generation': config['generation'],
                           'files': True, 'writeMode': 'optimisticTopLevel',
-                          'nestedMutations': home.libc.syscall(444, 0, 0, 1) >= 3,
-                          'delete': False, 'terminal': True, 'uid': os.geteuid()}
+                          'nestedMutations': True,
+                          'containment': 'validatedPaths',
+                          'delete': False, 'terminal': not config.get('files_only', False), 'uid': os.geteuid()}
             elif op == 'list':
                 cursor = args.get('cursor', 0)
                 if type(cursor) is not int or not 0 <= cursor <= 10000:
@@ -147,6 +150,7 @@ def bridge_app(config, backend_ssl):
     origin = secure_url(config['origin'])
     mos = secure_url(config['mos_origin'])
     backend = secure_url(config['backend_origin'])
+    files_backend = secure_url(config['files_backend_origin']) if config.get('files_backend_origin') else backend
     client = None
     profile_gate = asyncio.Lock()
     next_profile = 0
@@ -207,7 +211,8 @@ def bridge_app(config, backend_ssl):
         body = {'owner': config['owner_id'], 'generation': config['generation'],
                 'operation': value['operation'], 'args': value.get('args', {})}
         # No MOS headers, cookies or caller-selected target reach the backend.
-        async with client.post(backend + '/v1/operation', json=body,
+        target = backend if value['operation'].startswith('terminal.') else files_backend
+        async with client.post(target + '/v1/operation', json=body,
                                ssl=backend_ssl, allow_redirects=False) as response:
             raw = await response.content.read(2 * LIMIT + 1)
             if len(raw) > 2 * LIMIT:

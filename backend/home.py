@@ -155,9 +155,9 @@ class Home:
         return self.mutate('trash.list')
 
     def mutate(self, operation, **args):
-        # A separate, short-lived unprivileged process confines mutations with
-        # Landlock. Even a parent directory moved by a native writer cannot turn
-        # an already opened directory handle into a write outside this Home.
+        # Short-lived workers retain the existing unprivileged identity and
+        # openat2 path checks. Landlock is additional protection when available;
+        # Tier1 does not promise containment against concurrent native reparenting.
         self.check()
         value = dict(path=self.path, uid=self.uid, device=self.device,
                      mount_id=self.mount_id, operation=operation, args=args)
@@ -337,7 +337,14 @@ class Home:
                         raise Blocked('capacityExceeded')
                     entry = self.trash_entry(trash, item.name)
                     try:
-                        value = self.metadata(entry)
+                        try:
+                            value = self.metadata(entry)
+                        except (FileNotFoundError, ValueError, KeyError, TypeError, Blocked):
+                            # An interrupted receipt write must not hide other
+                            # recoverable entries. Retain everything for review.
+                            entries.append({'id': item.name, 'path': '(incomplete receipt)',
+                                            'state': 'incompleteReceipt'})
+                            continue
                         try:
                             os.stat('payload', dir_fd=entry, follow_symlinks=False)
                             state = 'recoverable'
@@ -369,11 +376,11 @@ class Home:
 
 
 def confine(home):
-    # Linux x86_64/aarch64 Landlock ABI >=3: include REFER and TRUNCATE.
-    # Fail closed rather than silently dropping the native reparent protection.
+    # Optional extra protection, not the Tier1 admission boundary. All callers
+    # still use validated relative paths and openat2; no realpath fallback.
     libc = home.libc
     if libc.syscall(444, 0, 0, 1) < 3:
-        raise Blocked('mutationUnavailable')
+        return False
     rights = sum(1 << bit for bit in (1, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14))
     attr = ctypes.c_uint64(rights)
     rules = libc.syscall(444, ctypes.byref(attr), ctypes.sizeof(attr), 0)
@@ -389,6 +396,7 @@ def confine(home):
             raise Blocked('mutationUnavailable')
     finally:
         os.close(rules)
+    return True
 
 
 if __name__ == '__main__' and sys.argv[1:] == ['--mutation']:

@@ -78,8 +78,11 @@ POST JSON `{operation,args}` to the bridge. Server supplies owner/generation.
 Agent endpoint `/v1/operation` requires mTLS and matching owner/generation.
 Health, list, read, top-level mkdir and bounded atomic new-file write/upload;
 terminal list, create, attach, detach, output, input, resize, end are allowlisted.
-The installed PTY agent still has no delete/trash endpoint. Source adds guarded
-nested mkdir/write, move, trash/list/restore; unsupported containment fails closed.
+The original installed PTY agent remains unchanged to preserve running sessions.
+A files-only instance of the same agent code provides nested mkdir/write, move,
+trash/list/restore. Configure `files_only:true`, a separate mTLS port, and the
+bridge's trusted `files_backend_origin`; terminal requests retain backend_origin.
+The files-only instance rejects all terminal operations.
 Files/requests max1MiB/2MiB; paths max32components; listings page200 and cursor
 max10000; four PTYs,1MiB replay each; eight concurrent requests,8second bridge
 deadline. These are service bounds, not a filesystem quota against the user shell.
@@ -93,25 +96,37 @@ before replacement, the safe read must match or return conflict (including a
 missing target). Replacement creates a new mode0600 inode. This is optimistic
 conflict detection, not compare-and-swap: a terminal/native writer can still race
 between the check and rename. The user explicitly accepted this limitation.
-Nested mutations execute in short-lived ordinary-user workers with Landlock ABI3+
-confinement beneath the admitted Home. Parent handles still use openat2. Atomic
+Nested mutations execute in short-lived ordinary-user workers. Parent handles
+use openat2; Landlock ABI3+ is optional additional protection when available. Atomic
 NOREPLACE moves never fall back to copy/delete. Only one root is currently admitted;
 no second mount/root was invented for cross-root testing. Trash fsyncs an original
 location receipt before moving the payload into reserved `.mos-desktop-trash`.
 Restore never overwrites conflicts; interrupted moves retain discoverable receipts
 and payloads. No permanent deletion or automatic purge exists.
-Enabled-kernel CI passes nested operations, permission/boundary, native reparent
-containment and interrupted-trash recovery. MOS and the development NAS return
-ENOSYS for Landlock. A live bubblewrap read-only-root/RW-Home probe still allowed
-a held parent handle to escape after native reparenting; that fallback is rejected.
-MOS nested mutation/move/trash therefore remains blocked, not accepted.
+The explicitly approved Tier1 contract uses validated paths and ordinary matt
+permissions, not adversarial native-reparent containment. A concurrent native
+writer can move an already-open parent outside Home before a mutation; no stronger
+isolation is claimed. Traversal, symlink resolution, hardlinks and mount crossings
+remain rejected. MOS nested/move/trash/restore, conflicts and interrupted-trash
+tests now pass without Landlock. Stronger containment is future hardening.
+
+Installed files service: `/opt/mos-desktop/files-backend`, configuration
+`/etc/mos-desktop/files-agent.json`, unit `mos-desktop-files.service`, port18446.
+Reuse the agent unit with that code/config path; enable only after verifying UID,
+Home admission and visible mounts. It uses the existing TLS identity/bridge CA.
+Source code is root-owned and separate from user Home. Restart only this files
+unit for updates/recovery; the original agent and PTYs are intentionally retained.
+Effective LXC systemd drop-ins override NoNewPrivileges and several kernel/control
+protection flags. ProtectSystem=strict and User=matt remain effective; do not infer
+full unit hardening from the base file. No broad host pool binds were observed in
+the agent mount namespace; approved `/home/matt` remains the sole personal root.
 
 Terminal output is base64 bytes with sequence/gap/exited metadata. Input is
 bounded and returns accepted byte count; never automatically replay uncertain
 input. One view controls input/resize for15seconds, renewed on control traffic;
 explicit takeover is supported. Polling reauthenticates each operation. Logout
 invalidates client access, but MOS currently does not revoke an otherwise valid
-JWT server-side; full access revocation on MOS logout remains an integration gate.
+JWT server-side; MOS-wide revocation is optional future hardening under Tier1.
 No PTY survival across service restart is promised: old IDs fail, files survive.
 Browser layout stores only validated session/generation references under the
 existing identity fence. Refresh reattaches that reference without creating a
@@ -139,10 +154,12 @@ services or end other sessions. Add MOS_TEST_PRESENTATION=standalone to run the
 same real service workflows through the same-origin standalone entry. Both runs
 exercise480 actual keystrokes, complete echo delivery and retained input control.
 The other presentation updates the same canary to verify real cross-view conflicts.
-Nested file policy, logout revocation and full host reboot/rollback remain
-unaccepted. Safe preflight checks establish configuration only. STREAM2 retains
-its full STREAM1 dependency; functional streaming does not waive missing file
-containment or native Battle/human media-quality acceptance.
+Nested file policy is now verified under the revised single-owner Tier1 contract.
+`MOS_TEST_ACCOUNT=matt node tests/personal-nested-live.cjs` exercises installed
+nested folders/write/move/trash/restore/refresh using actual UI interactions.
+Full host reboot/rollback remains untested; safe preflight is configuration proof
+only. Native Battle/human media-quality checks remain separate; Landlock and
+MOS-wide JWT revocation no longer block the homelab completion point.
 
 ## Approved Selkies installation and scoped streaming
 

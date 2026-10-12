@@ -89,8 +89,6 @@ class Files(unittest.TestCase):
         self.assertFalse((self.path / 'large').exists())
 
     def test_nested_move_trash_restore_and_conflicts(self):
-        if self.home.libc.syscall(444, 0, 0, 1) < 3:
-            self.skipTest('Landlock ABI3 required for native reparent containment')
         self.home.mkdir('Documents')
         self.home.mkdir('Documents/nested')
         self.home.write('Documents/nested/new', b'new', None)
@@ -116,8 +114,6 @@ class Files(unittest.TestCase):
         self.assertEqual(self.home.trash_list()['entries'][0]['state'], 'completedOrInterrupted')
 
     def test_nested_permissions_and_boundaries(self):
-        if self.home.libc.syscall(444, 0, 0, 1) < 3:
-            self.skipTest('Landlock ABI3 required for native reparent containment')
         self.home.mkdir('locked')
         os.chmod(self.path / 'locked', 0o500)
         try:
@@ -161,22 +157,19 @@ sys.exit(1)
                            cwd=Path(__file__).parent, check=True)
             self.assertFalse((Path(outside) / 'moved' / 'escape').exists())
 
-    def test_mutations_fail_closed_without_kernel_support(self):
-        if self.home.libc.syscall(444, 0, 0, 1) >= 3:
-            self.skipTest('Missing-kernel-support case only')
+    def test_mutations_work_with_optional_landlock_unavailable(self):
+        from types import SimpleNamespace
+        from home import confine
+        self.assertFalse(confine(SimpleNamespace(libc=SimpleNamespace(syscall=lambda *args: -1))))
         self.home.mkdir('Documents')
         self.home.write('proof', b'keep', None)
-        for action in [lambda: self.home.mkdir('Documents/nested'),
-                       lambda: self.home.write('Documents/new', b'no', None),
-                       lambda: self.home.move('proof', 'Documents/new'),
-                       lambda: self.home.trash('proof')]:
-            with self.assertRaisesRegex(Blocked, 'mutationUnavailable'):
-                action()
-        self.assertEqual(self.home.read('proof')[0], b'keep')
+        self.home.mkdir('Documents/nested')
+        self.home.move('proof', 'Documents/nested/proof')
+        receipt = self.home.trash('Documents/nested/proof')
+        self.home.restore(receipt['id'])
+        self.assertEqual(self.home.read('Documents/nested/proof')[0], b'keep')
 
     def test_interrupted_trash_is_discoverable_and_restore_preserves_payload(self):
-        if self.home.libc.syscall(444, 0, 0, 1) < 3:
-            self.skipTest('Landlock ABI3 required for native reparent containment')
         self.home.mkdir('Documents')
         self.home.write('Documents/proof', b'keep after interruption', None)
         script = '''import os,sys
@@ -198,6 +191,18 @@ h.rename=interrupted; h._trash('Documents/proof')
         self.assertEqual(entries[0]['path'], 'Documents/proof')
         self.home.restore(entries[0]['id'])
         self.assertEqual(self.home.read('Documents/proof')[0], b'keep after interruption')
+
+    def test_incomplete_receipt_does_not_hide_recoverable_trash(self):
+        self.home.write('proof', b'keep', None)
+        receipt = self.home.trash('proof')
+        incomplete = self.path / '.mos-desktop-trash' / ('a' * 32)
+        incomplete.mkdir()
+        (incomplete / 'metadata.json').write_text('{')
+        entries = self.home.trash_list()['entries']
+        self.assertEqual({item['state'] for item in entries}, {'recoverable', 'incompleteReceipt'})
+        self.home.restore(receipt['id'])
+        self.assertEqual(self.home.read('proof')[0], b'keep')
+        self.assertTrue(incomplete.exists())
 
     def test_replacement_missing_identity_and_reopen(self):
         self.home.write('.settings', b'persist', None)
@@ -390,6 +395,14 @@ class HttpsBoundary(unittest.IsolatedAsyncioTestCase):
         status, value = await self.call()
         self.assertEqual(status, 503)
         self.assertEqual(value['error'], 'backendUnavailable')
+
+    async def test_files_only_agent_rejects_terminal_creation(self):
+        self.config['files_only'] = True
+        status, value = await self.call('health')
+        self.assertEqual(status, 200)
+        self.assertTrue(value['nestedMutations'])
+        self.assertFalse(value['terminal'])
+        self.assertEqual((await self.call('terminal.create'))[0], 403)
 
     async def test_shared_auth_budget_still_verifies_every_request(self):
         results = await asyncio.gather(*(self.call() for _ in range(7)))
