@@ -1,0 +1,20 @@
+{
+  "sourceRevision": "345506ce0daffde227fca8866abb86e6cee14fb4",
+  "localIntegrationOnly": true,
+  "features": [],
+  "sourceAssets": {
+    "typescript/layout.ts": "76fc4a024d94e77ce7c4dd5c3dd4fb359ad1cf50bd1c82f7db402502401c33df",
+    "typescript/shell-dom.ts": "9daabe7f2ee58501d62ddff56e842327471a9dbff5105af189bd6ed9fdc31137",
+    "typescript/shell-profile.ts": "479687c922f6d54643dff88bb9b9ae78d714a036733a90ca9845a834ddedcf42",
+    "rust/layout/src/shell.rs": "7963dc4afea450201203cb2f85d35178de52862f06cad22115695726f8c323db",
+    "rust/layout/src/bridge.rs": "efb6f141f0b4fb1c4402266a9f07c90fe8dce69c6df8a642d9cc61734a9b6152",
+    "rust/layout/src/lib.rs": "b9a1db87ae885f08f7ee3cd02b14bad22ba68e24caaf05ff3c5037aa3b40e7a4",
+    "rust/layout/Cargo.toml": "9ca601f7a580950a52512c5718dd8815084461889e05d41a35dcc57a00b5e642",
+    "rust/layout/Cargo.lock": "a56ae47de3e2ad399c407e913e9f3fe806196395cfdb749625e9cda49754a539"
+  },
+  "assets": {
+    "shell.wasm": "4e19943261d7fdcf78650f376a544fd5c47e51ca4b1b67c2b99883e88e266fad",
+    "shell.mjs": "f37afadafddcd71885e8088748d139161dfa913a26bc59559b4b9e652d1dd3b0",
+    "SHELL-NOTICES.txt": "faaebeabbf8d5f002bdd0edf9a0c858147c2cc32aaff341aa2a13363e6cbab46"
+  }
+}

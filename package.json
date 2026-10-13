@@ -13,6 +13,7 @@
     "test": "tests"
   },
   "scripts": {
+    "test:shell-ui": "node tests/shell-ui.cjs",
     "test": "npm --prefix page test",
     "test:e2e": "playwright test",
     "test:e2e:auth": "playwright test --project=auth",

@@ -29,6 +29,8 @@ copyFileSync(path.join(root,'page/src/generated/THIRD-PARTY-NOTICES.txt'),path.j
 copyFileSync(path.join(root,'page/src/generated/identity.json'),path.join(docs,'runtime-provenance.json'));
 copyFileSync(path.join(root,'runtime/LAYOUT-NOTICES.txt'),path.join(docs,'LAYOUT-NOTICES.txt'));
 copyFileSync(path.join(root,'runtime/layout-identity.json'),path.join(docs,'layout-provenance.json'));
+copyFileSync(path.join(root,'runtime/SHELL-NOTICES.txt'),path.join(docs,'SHELL-NOTICES.txt'));
+copyFileSync(path.join(root,'runtime/shell-identity.json'),path.join(docs,'shell-provenance.json'));
 copyFileSync(path.join(root,'runtime/XTERM-NOTICES.txt'),path.join(docs,'XTERM-NOTICES.txt'));
 copyFileSync(path.join(root,'runtime/EDITOR-NOTICES.txt'),path.join(docs,'EDITOR-NOTICES.txt'));
 copyFileSync(path.join(root,'runtime/editor-identity.json'),path.join(docs,'editor-provenance.json'));
@@ -56,4 +58,4 @@ writeFileSync(path.join(output, filename + '.sha256'), `${sha256}  ${filename}\n
 const md5 = createHash('md5').update(readFileSync(path.join(output,filename))).digest('hex');
 writeFileSync(path.join(output, filename + '.md5'), `${md5}  ${filename}\n`);
 console.log(JSON.stringify({status:'PASS', filename, sha256, architecture:'all', published:false,
-  boundary:'Compiled-only package with notices/provenance; installed M2 acceptance open'}));
+  boundary:'Compiled-only package with notices/provenance; shell verified locally, not deployed'}));

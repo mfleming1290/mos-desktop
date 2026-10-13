@@ -7,10 +7,14 @@ const files = readdirSync(directory);
 const manifest = JSON.parse(readFileSync(new URL('manifest.json',directory)));
 assert.deepEqual(manifest, config);
 assert(files.includes('remoteEntry.js'));
-assert(files.every(file => /^(manifest\.json|remoteEntry\.js|(runtime|layout)-[\w-]+\.wasm|__federation_(expose_Plugin|fn_import)-[\w-]+\.js|__federation_expose_Plugin-[\w-]+\.css|(PersonalHome|PersonalTerminal|PersonalEditor|PersonalStream)-[\w-]+\.(js|css)|(desktop-controller|desktop-personal|_plugin-vue_export-helper)-[\w-]+\.js)$/.test(file)), 'Unexpected distribution asset');
+assert(files.every(file => /^(manifest\.json|remoteEntry\.js|(runtime|layout|shell)-[\w-]+\.wasm|__federation_(expose_Plugin|fn_import)-[\w-]+\.js|__federation_expose_Plugin-[\w-]+\.css|(PersonalHome|PersonalTerminal|PersonalEditor|PersonalStream)-[\w-]+\.(js|css)|(desktop-controller|desktop-personal|_plugin-vue_export-helper)-[\w-]+\.js)$/.test(file)), 'Unexpected distribution asset');
 const editorIdentity=JSON.parse(readFileSync(new URL('../runtime/editor-identity.json',import.meta.url)));
 for(const [file,digest] of Object.entries(editorIdentity.assets))assert.equal(createHash('sha256').update(readFileSync(new URL(`../runtime/${file}`,import.meta.url))).digest('hex'),digest);
-assert.equal(files.filter(file => file.endsWith('.wasm')).length, 2);
+assert.equal(files.filter(file => file.endsWith('.wasm')).length, 3);
+const shellIdentity=JSON.parse(readFileSync(new URL('../runtime/shell-identity.json',import.meta.url)));
+assert.equal(shellIdentity.sourceRevision,'345506ce0daffde227fca8866abb86e6cee14fb4');
+for(const [file,digest]of Object.entries(shellIdentity.assets))assert.equal(createHash('sha256').update(readFileSync(new URL(`../runtime/${file}`,import.meta.url))).digest('hex'),digest);
+const shellFile=files.find(file=>/^shell-.*\.wasm$/.test(file));assert.equal(createHash('sha256').update(readFileSync(new URL(shellFile,directory))).digest('hex'),shellIdentity.assets['shell.wasm']);
 const layoutIdentity=JSON.parse(readFileSync(new URL('../runtime/layout-identity.json',import.meta.url)));
 for(const [file,digest] of Object.entries(layoutIdentity.assets))assert.equal(createHash('sha256').update(readFileSync(new URL(`../runtime/${file}`,import.meta.url))).digest('hex'),digest);
 const layoutFile=files.find(file=>/^layout-.*\.wasm$/.test(file));
@@ -46,9 +50,9 @@ assert(scripts.includes('import.meta.url'), 'WASM URL must be module-relative');
 const standalone=new URL('../page/dist/standalone/',import.meta.url);
 const standaloneFiles=readdirSync(standalone);
 assert(standaloneFiles.includes('standalone.html'));
-assert(standaloneFiles.every(file=>/^(standalone\.html|(runtime|layout)-[\w-]+\.wasm|(standalone|PersonalHome|PersonalTerminal|PersonalEditor|PersonalStream)-[\w-]+\.(js|css))$/.test(file)));
+assert(standaloneFiles.every(file=>/^(standalone\.html|(runtime|layout|shell)-[\w-]+\.wasm|(standalone|PersonalHome|PersonalTerminal|PersonalEditor|PersonalStream)-[\w-]+\.(js|css))$/.test(file)));
 for(const file of standaloneFiles)assert(!forbidden.test(readFileSync(new URL(file,standalone)).toString('latin1')),`Private path or secret pattern in standalone/${file}`);
-for(const prefix of ['runtime','layout']){
+for(const prefix of ['runtime','layout','shell']){
   const file=standaloneFiles.find(name=>name.startsWith(prefix+'-')&&name.endsWith('.wasm'));
   assert(file);assert.equal(hash(readFileSync(new URL(file,standalone))),hash(readFileSync(new URL(file,directory))));
 }

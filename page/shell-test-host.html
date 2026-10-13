@@ -1,0 +1,6 @@
+<!doctype html><meta charset="utf-8"><title>Local authenticated shell integration</title><div id="app"></div>
+<script type="module">
+import {createApp,h} from 'vue';
+import Plugin from './src/Plugin.vue';
+createApp({render:()=>h(Plugin,{requireAuthenticated:true})}).mount('#app');
+</script>

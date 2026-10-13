@@ -11,6 +11,7 @@ import {createArrangement} from './desktop-arrangement.mjs';
 import {encodeLayout, decodeLayout, createLayoutStorage} from './desktop-layout.mjs';
 import {createMosReadHost} from './desktop-mos.mjs';
 import {createPersonalHost} from './desktop-personal.mjs';
+import ShellLayout from './ShellLayout.vue';
 
 // Only the trusted host may supply this; never infer it from browser UI or a display name.
 const props = defineProps({verifiedStorageScope: {type: String, default: ''}, canPersist: {type: Function, default: () => true}});
@@ -95,12 +96,14 @@ function commitDock() {
 const commitBounds = (id,bounds) => arrangement.value
   ? applyArrangement(arrangements.apply(arrangement.value,{kind:'floating',view:id,bounds}))
   : accepted(controller.dispatch('set_bounds',{window_id:id,bounds}));
-function activateWindow(id) {return action(async()=>{
+// Called inside the existing action queue; never enqueue recursively.
+async function revealArrangedWindow(id) {
   const view=layoutProjection.value?.views.find(v=>v.view===id);
   if(view && !view.active && arrangement.value?.mode==='tiled')
     await applyArrangement(arrangements.apply(arrangement.value,{kind:'tree',operation:{kind:'select',node:view.group,view:id}}));
   await revealWindow(controller,id);
-});}
+}
+function activateWindow(id) {return action(()=>revealArrangedWindow(id));}
 function measureArea() {
   const width = surface.value?.clientWidth, height = surface.value?.clientHeight;
   if (!(width > 0 && height > 0)) return false;
@@ -119,7 +122,7 @@ async function recoverWindows() {
 function action(fn, focus = true, persist = true) {
   const next = actions.then(async () => {
     if (!live || !ready.value) return;
-    try {await fn(); await recoverWindows(); if (persist) {saveLayout(); if (persist === 'immediate') persistence?.flush();} if (live && focus) await reconcileFocus();} catch (error) {report(error);}
+    try {const result=await fn(); await recoverWindows(); if (persist) {saveLayout(); if (persist === 'immediate') persistence?.flush();} if (live && focus) await reconcileFocus();return result;} catch (error) {report(error);return {error};}
   });
   actions = next.catch(report); return next;
 }
@@ -198,6 +201,15 @@ function keydown(event) {
   else if (id && event.key.toLowerCase() === 'x') {event.preventDefault(); action(() => close(id));}
 }
 function visibility() {activePage.value = !document.hidden; if (document.hidden) endGesture();}
+async function shellLaunch(id,initial,signal){
+ const result=await action(async()=>{
+  if(!props.verifiedStorageScope||!props.canPersist()||signal.aborted||!registrations.some(r=>r.definition.id===id))throw Error('Application admission denied');
+  const existing=controller.snapshot.apps.find(a=>a.definitionId===id);
+  if(existing){const window=controller.snapshot.windows.find(w=>w.appInstanceId===existing.id);await revealArrangedWindow(window.id);return true;}
+  const r=registrations.find(r=>r.definition.id===id),bounds=initial?geometry.recover({...initial,width:Math.max(initial.width,r.definition.minimum_size.width),height:Math.max(initial.height,r.definition.minimum_size.height)},r.definition.minimum_size,area.value):undefined;
+  await launchApp(controller,id,bounds);return true;
+ });if(result!==true)throw result?.error??Error('Application unavailable');
+}
 onErrorCaptured((error, instance) => {
   const id = instance?.$props?.instanceId;
   if (id) failures.value = new Map(failures.value).set(id, 'Application unavailable');
@@ -269,7 +281,7 @@ onUnmounted(() => {
 <template>
   <section class="desktop-root" aria-label="MOS Desktop" @keydown="keydown">
     <h1>MOS Desktop</h1>
-    <p class="help">0.2.5 layout test candidate — SDK geometry, tiling, tabs and explicit docking preview.</p>
+    <p class="help">Local shell integration candidate — existing windows and sessions remain host-owned.</p>
     <nav aria-label="Layout arrangement">
       <button :disabled="!ready" @click="arrange('freeform')">Freeform</button>
       <button :disabled="!ready" @click="arrange('tiles')">Tile windows</button>
@@ -282,6 +294,7 @@ onUnmounted(() => {
     <p role="status">{{ status }}</p>
     <p role="status">{{ layoutStatus }} <button v-if="canRetrySave" @click="action(() => { saveLayout(); persistence.flush(); }, false, false)">Retry autosave</button></p>
     <p class="help">Keyboard: Alt+Shift+Left/Right switches windows; Alt+Shift+M minimizes; Alt+Shift+X closes. Escape cancels a drag.</p>
+    <ShellLayout v-if="ready" :mount="surface" :applications="registrations.map(r=>r.definition)" :scope="verifiedStorageScope" :can-persist="canPersist" :launch="shellLaunch" />
     <div ref="surface" class="desktop-surface" tabindex="-1" aria-label="Desktop workspace">
       <article v-for="(window, index) in windows" :key="window.id" :ref="el => el ? frames.set(window.id, el) : frames.delete(window.id)"
         :data-window-id="window.id" :hidden="!shown(window)" :inert="shown(window) ? undefined : ''"

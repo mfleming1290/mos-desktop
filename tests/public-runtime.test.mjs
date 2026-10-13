@@ -225,9 +225,10 @@ test('real WASM command and host-only Vue',async()=>{
   globalThis.fetch=async(url,options)=>{requests.push({url,options});return{ok:true,arrayBuffer:async()=>assetBytes(url)};};
   const app=Vue.createApp(Page);app.mount('#app');await flush();
   assert.match(document.body.textContent,/Runtime ready/);
-  assert.equal(requests.length,2);
+  assert.equal(requests.length,3);
   assert.match(String(requests[0].url),/runtime-.*\.wasm$/);
   assert.match(String(requests[1].url),/layout-.*\.wasm$/);
+  assert.match(String(requests[2].url),/shell-.*\.wasm$/);
   assert(document.querySelector('[aria-label="Reserved shell strip"]'));
   for(const request of requests)assert.equal(request.options.credentials,'same-origin');
   app.unmount();for(const request of requests)assert.equal(request.options.signal.aborted,true);
