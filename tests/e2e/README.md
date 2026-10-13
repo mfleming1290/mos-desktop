@@ -29,6 +29,16 @@ services or ends PTYs. Default non-owner layout runs skip this separate check.
 Native typing uses20ms between keys and150ms after remote editing shortcuts;
 this is functional interaction acceptance, not maximum-rate input benchmarking.
 
+For the second approved AMD host, set `MOS_TEST_SERVER=aos`,
+`MOS_TEST_ACCOUNT=matt`, `MOS_STREAM_TEST=1` and `MOS_STREAM_EXPECT=amd`.
+The private environment supplies `APPS_TEST_URL`, `APPS_MATT_USERNAME` and
+`APPS_MATT_PASSWORD`; isolated authentication is saved separately as
+`.playwright/.auth/aos-matt.json`. Stream assertions use read-only SSH on that
+host, VA-API zero-copy logs, and correctly scaled mouse input. Unknown server
+selectors are rejected. For the original NVIDIA host, use `MOS_TEST_SERVER=mos`
+and `MOS_STREAM_EXPECT=nvidia`; omitting the server retains the original default.
+The personal-live and personal-nested-live scripts use the same server selector.
+
 All layout-test contexts block non-read `/api/` requests; no MOS resource controls are exercised. Storage is isolated browser-local, so closing test windows does not modify the human browser's layout. No internal application function, reducer or localStorage writes bypass the UI. Geometry assertions read DOM rectangles in workspace coordinates, not scroll-sensitive screen coordinates.
 
 ## Playwright CLI debugging

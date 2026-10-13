@@ -72,7 +72,9 @@ The container remained stopped as configured; a scoped manual start recovered al
 four enabled services. Agents retried twice while Tailscale became ready, then
 recovered without configuration or admission changes. Trusted preflight verified
 pool, Home ownership, required bind, reviewed mounts and namespace mapping.
-LXC autostart remains off. Future device identity changes still require trusted
+At that reboot, LXC autostart was off; the owner later enabled the original
+container's autostart. Unattended startup has not been independently verified.
+Future device identity changes still require trusted
 reinspection; do not bypass stale-admission refusal. This proves manual container
 recovery after a real host reboot, not unattended container startup or rollback.
 
@@ -277,7 +279,23 @@ the container; admit only its selected render node, not NVIDIA or physical input
 devices. The AMD branch uses radeonsi and ordinary distribution graphics libraries.
 An independent mapped Ubuntu24.04 container has passed UID1001 VA-API H264 encoding,
 Wayland GPU renderer initialization, backend25 tests (one optional skip), and
-scoped stream service restart/Home canary preservation. These are not installed
-second-server browser/authorization acceptance: its fresh private network identity
-and authenticated bridge must be admitted separately before browser ingress.
-For this backend, add `MOS_STREAM_EXPECT=nvidia` to the owner streaming test command.
+scoped stream service restart/Home canary preservation. Fresh private network,
+MOS-owner admission and mTLS identities are now installed separately on that host.
+Its actual browser checks pass native Save/roles/recovery, embedded and standalone
+Home/editor/terminal, and nested moves/trash/restore. Real no-client-certificate,
+wrong-owner, files-only terminal denial and path-boundary checks pass. Scoped
+files/stream-agent/bridge recovery preserves an existing PTY and native xedit.
+Neither host's requested60 FPS establishes measured cadence or subjective latency.
+See tests/e2e/README.md for explicit NVIDIA/AMD selection and separate auth state.
+
+On the second MOS base, Python3.13's venv module was available but the current
+venv Debian package required a newer host Python patch level. Provisioning used
+the existing interpreter with `venv --without-pip`, then the compatible Debian
+pip wheel to install dependencies into persistent protected service storage.
+Only pure pip/setuptools wheel Debian packages were installed and retained in
+`/boot/optional/packages`; the host interpreter was not upgraded. The bridge
+does not need pip at startup. Validate the actual base before choosing this path;
+never force an incompatible venv package or copy another host's service keys.
+Container rootfs and scoped startup hooks persist, but second-host full reboot
+recovery is untested and its container autostart remains off. Manual start is
+currently required after a host reboot; no disruptive reboot was performed.

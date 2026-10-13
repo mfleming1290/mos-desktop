@@ -1,12 +1,14 @@
 const {test,expect}=require('@playwright/test');
 const {execFileSync}=require('node:child_process');
+const {sshHost}=require('./environment.cjs');
 
 test('opaque stream settings match the server and reject parent messages',async({context})=>{
  test.skip(process.env.MOS_TEST_ACCOUNT!=='matt'||process.env.MOS_STREAM_TEST!=='1','Explicit owner stream integration run only');
  test.setTimeout(45000);
- const nvidia=process.env.MOS_STREAM_EXPECT==='nvidia';
+ const gpu=['nvidia','amd'].includes(process.env.MOS_STREAM_EXPECT);
+ const codec=process.env.MOS_STREAM_EXPECT==='amd'?'VAAPI':'NVENC';
  const page=await context.newPage();
- const since='@'+execFileSync('ssh',['root@mos','date','+%s'],{encoding:'utf8'}).trim();
+ const since='@'+execFileSync('ssh',[sshHost,'date','+%s'],{encoding:'utf8'}).trim();
  let settingsReceived=0;
  page.on('console',message=>{if(message.text().includes('Dashboard received server settings'))settingsReceived++;});
  await page.goto('/_plugins/desktop/standalone/standalone.html');
@@ -19,7 +21,7 @@ test('opaque stream settings match the server and reject parent messages',async(
   const frame=page.frames().find(f=>f.url().includes('/desktop-stream/'));
   await frame.getByRole('button',{name:'Video Settings',exact:true}).press('Enter');
   await expect(frame.locator('#framerateSlider')).toHaveValue('60');
-  if(nvidia){
+  if(gpu){
    await expect(frame.getByText('Video CRF (25):',{exact:true})).toBeVisible();
    await expect(frame.locator('#jpegQualitySlider')).toHaveCount(0);
    await article.getByRole('button',{name:'Maximize',exact:true}).click();
@@ -38,10 +40,10 @@ test('opaque stream settings match the server and reject parent messages',async(
   await article.locator('iframe').evaluate(iframe=>iframe.contentWindow.postMessage({type:'serverSettings',payload:{encoder:{allowed:['h264enc'],value:'h264enc'}}},'*'));
   await page.waitForTimeout(200);
   expect(settingsReceived).toBe(before);
-  const logs=()=>execFileSync('ssh',['root@mos','lxc-attach','-n','mos-desktop','--','journalctl','-u','mos-desktop-stream','--since='+since,'--no-pager'],{encoding:'utf8'});
+  const logs=()=>execFileSync('ssh',[sshHost,'lxc-attach','-n','mos-desktop','--','journalctl','-u','mos-desktop-stream','--since='+since,'--no-pager'],{encoding:'utf8'});
   // Verify the backend applied the connection defaults, not only their UI values.
-  await expect.poll(()=>nvidia?
-   /Zero-copy capture:.*rendered on.*encoded in place on NVENC/.test(logs())&&/FPS: 60.0.*H264 \(NVENC\)/.test(logs()):
+  await expect.poll(()=>gpu?
+   new RegExp('Zero-copy capture:.*rendered on.*encoded in place on '+codec).test(logs())&&new RegExp('FPS: 60.0.*H264 \\('+codec+'\\)').test(logs()):
    /settings applied.*jpeg.*60 fps.*software encoding/.test(logs())).toBe(true);
   await frame.getByRole('button',{name:'Screen Settings',exact:true}).press('Enter');
   await expect(frame.getByTitle('Use canvas cursor rendering (Paint to canvas)',{exact:true})).toBeVisible();
@@ -55,12 +57,12 @@ test('scoped stream input ownership, native save and view recovery',async({conte
  test.skip(process.env.MOS_TEST_ACCOUNT!=='matt'||process.env.MOS_STREAM_TEST!=='1','Explicit owner stream integration run only');
  test.setTimeout(90000);
  const views=[];
- const nativeRead=path=>{try{return execFileSync('ssh',['root@mos','lxc-attach','-n','mos-desktop','--','runuser','-u','matt','--','cat',path],{encoding:'utf8',stdio:['ignore','pipe','pipe']});}catch(error){if(error.status===1&&String(error.stderr).includes('No such file or directory'))return '';throw error;}};
- const applicationPid=()=>execFileSync('ssh',['root@mos','lxc-attach','-n','mos-desktop','--','pgrep','-u','matt','-x','xedit'],{encoding:'utf8'}).trim();
+ const nativeRead=path=>{try{return execFileSync('ssh',[sshHost,'lxc-attach','-n','mos-desktop','--','runuser','-u','matt','--','cat',path],{encoding:'utf8',stdio:['ignore','pipe','pipe']});}catch(error){if(error.status===1&&String(error.stderr).includes('No such file or directory'))return '';throw error;}};
+ const applicationPid=()=>execFileSync('ssh',[sshHost,'lxc-attach','-n','mos-desktop','--','pgrep','-u','matt','-x','xedit'],{encoding:'utf8'}).trim();
  const originalPid=applicationPid();
  async function nativeClick(view,x,y){
   const input=view.frame.locator('#overlayInput');
-  if(process.env.MOS_STREAM_EXPECT==='nvidia'){
+  if(['nvidia','amd'].includes(process.env.MOS_STREAM_EXPECT)){
    // Read geometry only; real mouse events still cross the streamed UI boundary.
    const box=await input.boundingBox();
    const scale=Math.min(box.width/1280,box.height/720);
