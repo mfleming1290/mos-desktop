@@ -296,7 +296,12 @@ Only pure pip/setuptools wheel Debian packages were installed and retained in
 `/boot/optional/packages`; the host interpreter was not upgraded. The bridge
 does not need pip at startup. Validate the actual base before choosing this path;
 never force an incompatible venv package or copy another host's service keys.
-Container rootfs and scoped startup hooks persist, but second-host full reboot
-recovery is untested. The owner has enabled container autostart; read-only preflight
-confirms MOS LXC startup, required mounts and enabled services. Automatic recovery
-still needs observation after the owner-managed reboot; no reboot was performed here.
+The owner-managed second-host reboot recovered the container, all five services,
+bridge process, Tailscale identity and unchanged Home canary automatically.
+It exposed a hook defect: an existing persistent nginx backup prevented restoring
+routes into the regenerated host configuration. The hook now creates that backup
+only when absent, preserving the original while continuing route restoration.
+Replaying the actual post-boot condition and an isolated recreated-config regression
+pass; the installed browser11 checks pass after repair. Full automatic web-route
+recovery still needs confirmation on the next owner-managed reboot. No container
+or service restart was used to repair this boot, only validated graceful nginx reload.
