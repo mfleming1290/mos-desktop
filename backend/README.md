@@ -302,6 +302,9 @@ It exposed a hook defect: an existing persistent nginx backup prevented restorin
 routes into the regenerated host configuration. The hook now creates that backup
 only when absent, preserving the original while continuing route restoration.
 Replaying the actual post-boot condition and an isolated recreated-config regression
-pass; the installed browser11 checks pass after repair. Full automatic web-route
-recovery still needs confirmation on the next owner-managed reboot. No container
-or service restart was used to repair this boot, only validated graceful nginx reload.
+pass. A subsequent owner-managed reboot verified fully automatic recovery, including
+both web routes, without manual starts, restarts or repairs. All11 installed browser
+checks, embedded/standalone editor and terminal workflows, nested moves/trash/restore,
+and mTLS/owner/path boundaries pass after that reboot. The Home canary is unchanged.
+The earlier repair used only validated graceful nginx reload; the confirmation boot
+needed no intervention.
