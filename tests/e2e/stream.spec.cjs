@@ -4,6 +4,7 @@ const {execFileSync}=require('node:child_process');
 test('opaque stream settings match the server and reject parent messages',async({context})=>{
  test.skip(process.env.MOS_TEST_ACCOUNT!=='matt'||process.env.MOS_STREAM_TEST!=='1','Explicit owner stream integration run only');
  test.setTimeout(45000);
+ const nvidia=process.env.MOS_STREAM_EXPECT==='nvidia';
  const page=await context.newPage();
  const since='@'+execFileSync('ssh',['root@mos','date','+%s'],{encoding:'utf8'}).trim();
  let settingsReceived=0;
@@ -18,9 +19,19 @@ test('opaque stream settings match the server and reject parent messages',async(
   const frame=page.frames().find(f=>f.url().includes('/desktop-stream/'));
   await frame.getByRole('button',{name:'Video Settings',exact:true}).press('Enter');
   await expect(frame.locator('#framerateSlider')).toHaveValue('60');
-  await expect(frame.locator('#jpegQualitySlider')).toHaveValue('40');
-  await expect(frame.locator('#paintOverJpegQualitySlider')).toHaveValue('90');
-  await expect(frame.getByText('Video CRF (25):',{exact:true})).toHaveCount(0);
+  if(nvidia){
+   await expect(frame.getByText('Video CRF (25):',{exact:true})).toBeVisible();
+   await expect(frame.locator('#jpegQualitySlider')).toHaveCount(0);
+   await article.getByRole('button',{name:'Maximize',exact:true}).click();
+   await expect.poll(async()=>{
+    const box=await frame.locator('#overlayInput').boundingBox();
+    return Math.abs(box.width/box.height-1280/720);
+   }).toBeLessThan(.01);
+  }else{
+   await expect(frame.locator('#jpegQualitySlider')).toHaveValue('40');
+   await expect(frame.locator('#paintOverJpegQualitySlider')).toHaveValue('90');
+   await expect(frame.getByText('Video CRF (25):',{exact:true})).toHaveCount(0);
+  }
   expect(await frame.evaluate(()=>{try{void parent.localStorage;return false;}catch{return true;}})).toBe(true);
   const before=settingsReceived;
   // Negative boundary probe: a parent cannot impersonate Selkies self-messages.
@@ -29,7 +40,9 @@ test('opaque stream settings match the server and reject parent messages',async(
   expect(settingsReceived).toBe(before);
   const logs=()=>execFileSync('ssh',['root@mos','lxc-attach','-n','mos-desktop','--','journalctl','-u','mos-desktop-stream','--since='+since,'--no-pager'],{encoding:'utf8'});
   // Verify the backend applied the connection defaults, not only their UI values.
-  await expect.poll(()=>/settings applied.*jpeg.*60 fps.*software encoding/.test(logs())).toBe(true);
+  await expect.poll(()=>nvidia?
+   /Zero-copy capture:.*rendered on.*encoded in place on NVENC/.test(logs())&&/FPS: 60.0.*H264 \(NVENC\)/.test(logs()):
+   /settings applied.*jpeg.*60 fps.*software encoding/.test(logs())).toBe(true);
   await frame.getByRole('button',{name:'Screen Settings',exact:true}).press('Enter');
   await expect(frame.getByTitle('Use canvas cursor rendering (Paint to canvas)',{exact:true})).toBeVisible();
  }finally{
@@ -45,6 +58,16 @@ test('scoped stream input ownership, native save and view recovery',async({conte
  const nativeRead=path=>{try{return execFileSync('ssh',['root@mos','lxc-attach','-n','mos-desktop','--','runuser','-u','matt','--','cat',path],{encoding:'utf8',stdio:['ignore','pipe','pipe']});}catch(error){if(error.status===1&&String(error.stderr).includes('No such file or directory'))return '';throw error;}};
  const applicationPid=()=>execFileSync('ssh',['root@mos','lxc-attach','-n','mos-desktop','--','pgrep','-u','matt','-x','xedit'],{encoding:'utf8'}).trim();
  const originalPid=applicationPid();
+ async function nativeClick(view,x,y){
+  const input=view.frame.locator('#overlayInput');
+  if(process.env.MOS_STREAM_EXPECT==='nvidia'){
+   // Read geometry only; real mouse events still cross the streamed UI boundary.
+   const box=await input.boundingBox();
+   const scale=Math.min(box.width/1280,box.height/720);
+   await input.click({position:{x:(box.width-1280*scale)/2+x*scale,y:(box.height-720*scale)/2+y*scale}});
+  }else await input.click({position:{x,y}});
+  await view.page.waitForTimeout(150);
+ }
  async function attach(takeover){
   const page=await context.newPage();await page.goto('/_plugins/desktop/standalone/standalone.html');
   await page.getByText('Runtime ready',{exact:true}).waitFor();
@@ -63,19 +86,19 @@ test('scoped stream input ownership, native save and view recovery',async({conte
   expect((await context.request.get(capability+'api/commands')).status()).toBe(403);
   expect((await context.request.get(capability+'api/status',{headers:{Origin:'https://unrelated.invalid'}})).status()).toBe(403);
   await expect(viewer.article.locator('[role=status]')).toContainText('view only');
-  await viewer.frame.locator('#overlayInput').click({position:{x:160,y:220}});
+  await nativeClick(viewer,160,220);
   await viewer.page.keyboard.type('FORBIDDEN_VIEWER_INPUT',{delay:20});
-  await controller.frame.locator('#overlayInput').click({position:{x:160,y:220}});
+  await nativeClick(controller,160,220);
   await controller.page.keyboard.press('Control+e');
   await controller.page.waitForTimeout(150);
   const marker='stream-role-'+Date.now(),path=['','home','matt',marker+'.txt'].join('/');
   await controller.page.keyboard.type(marker,{delay:20});
-  await controller.frame.locator('#overlayInput').click({position:{x:210,y:52}});
+  await nativeClick(controller,210,52);
   await controller.page.keyboard.press('Control+a');await controller.page.keyboard.press('Control+k');
   await controller.page.waitForTimeout(150);
   await controller.page.keyboard.type(path,{delay:20});
   await controller.page.waitForTimeout(150);
-  await controller.frame.locator('#overlayInput').click({position:{x:80,y:52}});
+  await nativeClick(controller,80,52);
   await expect.poll(()=>nativeRead(path)).toContain(marker);
   expect(nativeRead(path)).not.toContain('FORBIDDEN_VIEWER_INPUT');
   await viewer.article.getByRole('button',{name:'Take stream input control',exact:true}).click();
@@ -84,12 +107,12 @@ test('scoped stream input ownership, native save and view recovery',async({conte
   await expect(controller.article.locator('[role=status]')).toContainText('view only',{timeout:12000});
   await controller.page.waitForTimeout(1500);
   controller.frame=controller.page.frames().find(f=>f.url().includes('/desktop-stream/'));
-  await controller.frame.locator('#overlayInput').click({position:{x:160,y:220}});
+  await nativeClick(controller,160,220);
   await controller.page.keyboard.type('FORBIDDEN_OLD_CONTROLLER',{delay:20});
-  await viewer.frame.locator('#overlayInput').click({position:{x:160,y:220}});
+  await nativeClick(viewer,160,220);
   await viewer.page.keyboard.type('TAKEOVER_ACCEPTED',{delay:20});
   await viewer.page.waitForTimeout(150);
-  await viewer.frame.locator('#overlayInput').click({position:{x:80,y:52}});
+  await nativeClick(viewer,80,52);
   await expect.poll(()=>nativeRead(path)).toContain('TAKEOVER_ACCEPTED');
   expect(nativeRead(path)).not.toContain('FORBIDDEN_OLD_CONTROLLER');
   await viewer.article.getByRole('button',{name:'Disconnect stream',exact:true}).click();

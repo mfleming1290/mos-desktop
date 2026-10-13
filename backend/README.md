@@ -241,3 +241,36 @@ for read-only canary/PID assertions. Tests retain unique canaries, never end PTY
 Native input checks use20ms key spacing and150ms after remote editing shortcuts.
 A zero-delay automation burst raced native cursor movement and split a marker;
 maximum-rate native input ordering/subjective responsiveness is not accepted.
+
+### Opt-in NVIDIA Wayland runner
+
+`run-wayland-session.sh` is an explicitly installed alternative to the CPU/Xvfb
+runner, not an automatic migration. It runs Selkies' headless Wayland compositor,
+rootful Xwayland for existing X11 applications, Openbox and xedit as UID1001.
+Set trusted unit environment `MOS_GPU_RENDER_NODE` to the admitted NVIDIA render
+node and `MOS_GPU_LIBRARIES` to a matching, persistent NVIDIA userspace directory.
+That directory must include CUDA/NVENC/NVCUVID dependencies, the NVIDIA GBM backend,
+`egl-vendor.json` pointing to its EGL vendor library, and `egl-platform.d` containing
+the NVIDIA external GBM platform configuration. Install Xwayland in the LXC.
+Reinspect and refresh copied libraries after a host driver upgrade; do not mix
+driver versions or bind broad host library/storage directories into the container.
+
+Admit only the selected DRM render node, nvidia0, nvidiactl and nvidia-uvm, using
+their inspected character-device major/minor numbers and exact bind mounts.
+No physical input devices, privileged container, card node, exclusive GPU ownership
+or host account/driver changes are required. Back up configuration before activation;
+container restart requires an owner-cleared window because native apps and PTYs end.
+Use a service drop-in resetting ExecStart to this runner while preserving existing
+User, Home admission and protected stream.env. Roll back that drop-in to the existing
+CPU runner and restart only the stream unit, not personal terminal services.
+
+Current NVIDIA canaries establish ordinary-user GPU encoding and Wayland zero-copy
+NVENC capture, plus installed native Save/ownership/reconnect behavior. They do not
+establish delivered60 FPS or subjective latency. Rootful Xwayland uses1280x720;
+the compositor is pinned to the same resolution and the browser scales locally
+with aspect preserved. Dynamic desktop-resolution changes are disabled because
+they distorted the fixed rootful compatibility surface. A fullscreen experiment
+was reverted; fixed-resolution native Save passes with actual scaled mouse input.
+AMD configuration and verification
+remain separate work; this runner currently selects NVIDIA explicitly.
+For this backend, add `MOS_STREAM_EXPECT=nvidia` to the owner streaming test command.
