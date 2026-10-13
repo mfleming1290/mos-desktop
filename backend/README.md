@@ -242,13 +242,14 @@ Native input checks use20ms key spacing and150ms after remote editing shortcuts.
 A zero-delay automation burst raced native cursor movement and split a marker;
 maximum-rate native input ordering/subjective responsiveness is not accepted.
 
-### Opt-in NVIDIA Wayland runner
+### Opt-in NVIDIA/AMD Wayland runner
 
 `run-wayland-session.sh` is an explicitly installed alternative to the CPU/Xvfb
 runner, not an automatic migration. It runs Selkies' headless Wayland compositor,
 rootful Xwayland for existing X11 applications, Openbox and xedit as UID1001.
-Set trusted unit environment `MOS_GPU_RENDER_NODE` to the admitted NVIDIA render
-node and `MOS_GPU_LIBRARIES` to a matching, persistent NVIDIA userspace directory.
+Set trusted unit environment `MOS_GPU_RENDER_NODE` to the admitted render node.
+`MOS_GPU_VENDOR` defaults to `nvidia`; set it to `amd` for Mesa/radeonsi VA-API.
+For NVIDIA, set `MOS_GPU_LIBRARIES` to a matching, persistent userspace directory.
 That directory must include CUDA/NVENC/NVCUVID dependencies, the NVIDIA GBM backend,
 `egl-vendor.json` pointing to its EGL vendor library, and `egl-platform.d` containing
 the NVIDIA external GBM platform configuration. Install Xwayland in the LXC.
@@ -271,6 +272,12 @@ the compositor is pinned to the same resolution and the browser scales locally
 with aspect preserved. Dynamic desktop-resolution changes are disabled because
 they distorted the fixed rootful compatibility surface. A fullscreen experiment
 was reverted; fixed-resolution native Save passes with actual scaled mouse input.
-AMD configuration and verification
-remain separate work; this runner currently selects NVIDIA explicitly.
+For AMD, install the distribution Mesa EGL/GBM and mesa-va-drivers packages in
+the container; admit only its selected render node, not NVIDIA or physical input
+devices. The AMD branch uses radeonsi and ordinary distribution graphics libraries.
+An independent mapped Ubuntu24.04 container has passed UID1001 VA-API H264 encoding,
+Wayland GPU renderer initialization, backend25 tests (one optional skip), and
+scoped stream service restart/Home canary preservation. These are not installed
+second-server browser/authorization acceptance: its fresh private network identity
+and authenticated bridge must be admitted separately before browser ingress.
 For this backend, add `MOS_STREAM_EXPECT=nvidia` to the owner streaming test command.
