@@ -297,5 +297,6 @@ Only pure pip/setuptools wheel Debian packages were installed and retained in
 does not need pip at startup. Validate the actual base before choosing this path;
 never force an incompatible venv package or copy another host's service keys.
 Container rootfs and scoped startup hooks persist, but second-host full reboot
-recovery is untested and its container autostart remains off. Manual start is
-currently required after a host reboot; no disruptive reboot was performed.
+recovery is untested. The owner has enabled container autostart; read-only preflight
+confirms MOS LXC startup, required mounts and enabled services. Automatic recovery
+still needs observation after the owner-managed reboot; no reboot was performed here.
