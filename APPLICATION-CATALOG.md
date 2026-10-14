@@ -133,8 +133,10 @@ Vite/Chromium and a disposable real file-backed Python connector authority. MOS
 authentication/stream/personal services are fixtures there. It exercises catalog
 launch/search, retained drafts/frames, disk manifests and actual approved module
 render/revoke without rebuilding. It is not installed MOS E6/E10/E12 acceptance.
-Linux stdlib tests cover actual openat2 read bounds and connector CAS/staging/CLI/
-recovery/symlinks. Full Linux aiohttp integration remains a separate dependency gate.
+Linux tests cover actual openat2 read bounds and connector CAS/staging/CLI/
+recovery/symlinks. User-provisioned aiohttp cleared the scratch integration gate:
+30 tests passed with one optional Landlock skip. Source-only Linux CI38524152722
+also passes backend/build checks. Neither is installed candidate acceptance.
 
 Rollback removes only this candidate's source/compiled imports using the recorded
 worker diff. Preserve pre-existing untracked/private files. Disable external
