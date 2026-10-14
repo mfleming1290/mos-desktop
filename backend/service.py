@@ -91,7 +91,7 @@ def agent_app(config, home):
                     raise Blocked('capacityExceeded')
                 result = home.list(args.get('path', ''), cursor)
             elif op == 'read':
-                data, version = home.read(args['path'])
+                data, version = home.read(args['path'], args.get('maxBytes', LIMIT))
                 result = {'data': base64.b64encode(data).decode(), 'version': version}
             elif op == 'mkdir':
                 home.mkdir(args['path'])
@@ -155,6 +155,11 @@ def bridge_app(config, backend_ssl):
     profile_gate = asyncio.Lock()
     next_profile = 0
     streams = None
+    connectors = None
+    if config.get('connector_discovery') or config.get('connector_authority'):
+        from connectors import ConnectorAuthority
+        connectors = ConnectorAuthority(config['connector_discovery'], config['connector_authority'],
+                                        config['origin'] + ':' + config['owner_id'])
 
     async def lifetime(app):
         nonlocal client, streams
@@ -203,6 +208,19 @@ def bridge_app(config, backend_ssl):
         value = await request.json()
         if not isinstance(value, dict) or not isinstance(value.get('args', {}), dict):
             raise ValueError('invalidRequest')
+        if value.get('operation', '').startswith('connector.'):
+            if connectors is None:
+                raise Blocked('connectorUnavailable')
+            args = value.get('args', {})
+            if value['operation'] == 'connector.list':
+                result = connectors.list()
+            elif value['operation'] == 'connector.decide':
+                result = connectors.decide(args['id'], args['identity'], args['decision'], args['revision'])
+            elif value['operation'] == 'connector.activate':
+                result = connectors.activate(args['id'], args['identity'], args['revision'])
+            else:
+                raise Blocked('forbidden')
+            return web.json_response(result)
         if streams and value.get('operation') in ('stream.attach', 'stream.detach'):
             method = streams.attach if value['operation'] == 'stream.attach' else streams.detach
             return web.json_response(await method(value.get('args', {}), authorization))

@@ -1,0 +1,5 @@
+Battle-owned optional application catalog and existing content binding.
+Unreleased private source candidate; compiled interfaces only.
+These modules have no third-party runtime dependencies. esbuild is a build tool.
+This notice does not grant publication or select a license for private SDK source.
+catalog-identity.json records exact source and compiled asset identities.

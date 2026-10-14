@@ -1,5 +1,11 @@
 # MOS Desktop — scoped personal workspace
 
+Current0.2.15 source also includes the optional application Library/connectors
+and design-pack presentation. See [catalog guide](APPLICATION-CATALOG.md) and
+[design integration](DESIGN-INTEGRATION.md). Installed0.2.14 is unchanged.
+Main/PR CI verifies source/build/backend boundaries without packaging this
+candidate. Numeric publication and live deployment remain separate gates.
+
 One MOS-first application presented through the MOS plugin and a same-origin authenticated standalone page. Both use the same scoped backend and origin-local layout authority. Neither frontend owns native process lifetime.
 
 Source candidate **0.2.15** adds the locally verified shell composition, Start/app icons, profile editing/locking/reset/import/export and origin-local compare-and-swap storage. Start/icon activation reveals existing inactive tabs without duplicate windows or lost editor drafts. The 39 Node tests, isolated shell and personal editor/terminal browser workflows, and embedded/standalone builds pass. Compiled shell assets carry separate notices and provenance. Installed **0.2.14** remains unchanged; no deployment or new public release is implied by this source update.

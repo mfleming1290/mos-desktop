@@ -1,0 +1,11 @@
+{
+  "sourceSha256": "55fc0af091e29c29239cfecc1d8eef533ab218c43b9e7829ca79170cef6d1b02",
+  "assetSha256": "b9675a0fef0cde106878637d163a7fa175936ad77e7427aac6fc75b4b673d93a",
+  "contentSourceSha256": "3ab6ccc4802b1d1347eb66e2f88881fa2e4a21ab1fb57754c780f6d24b316bc8",
+  "assets": {
+    "catalog.mjs": "b9675a0fef0cde106878637d163a7fa175936ad77e7427aac6fc75b4b673d93a",
+    "content.mjs": "6c73b3ed7e4c8566d1f2a6b199b09ffe0503df94ea5f919b3dacf9a16cad1865",
+    "content-bootstrap.mjs": "86af48fadc16420753bdcb80a9a2f1305dd44e5a0bfd79977de1157be571f28f"
+  },
+  "kind": "unreleased local source candidate"
+}

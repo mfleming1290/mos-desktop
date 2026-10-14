@@ -90,20 +90,22 @@ class Home:
             raise Blocked('unsupportedType')
         return fd
 
-    def read(self, path):
+    def read(self, path, limit=LIMIT):
+        if type(limit) is not int or not 0 < limit <= LIMIT:
+            raise Blocked('capacityExceeded')
         fd = self.open(path, os.O_RDONLY)
         try:
             if not stat.S_ISREG(os.fstat(fd).st_mode):
                 raise Blocked('unsupportedType')
             chunks, size = [], 0
-            while size <= LIMIT:
-                chunk = os.read(fd, min(65536, LIMIT + 1 - size))
+            while size <= limit:
+                chunk = os.read(fd, min(65536, limit + 1 - size))
                 if not chunk:
                     break
                 chunks.append(chunk)
                 size += len(chunk)
             data = b''.join(chunks)
-            if len(data) > LIMIT:
+            if len(data) > limit:
                 raise Blocked('capacityExceeded')
             return data, hashlib.sha256(data).hexdigest()
         finally:

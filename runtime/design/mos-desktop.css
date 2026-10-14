@@ -1,0 +1,69 @@
+/* MOS presentation specimen. Application-owned bindings, not an extracted palette.
+   Every selector is confined to the desktop; remote iframe contents are untouched. */
+.desktop-root[data-theme="mos"] {
+  --ud-surface:rgb(var(--v-theme-surface,34,34,34));
+  --ud-host-canvas:var(--ud-surface);
+  --ud-host-text:rgb(var(--v-theme-on-surface,238,238,238));
+  --ud-host-text-muted:rgb(var(--v-theme-on-surface,238,238,238));
+  --ud-host-border-control:#75828a;
+  --ud-host-surface-raised:rgb(var(--v-theme-surface));
+  --ud-host-surface-hover:#87969e18;
+  --ud-host-action-hover-bg:#19867230; --ud-host-action-hover-text:var(--ud-host-text);
+  --ud-host-action-active-bg:#19867245; --ud-host-action-active-text:var(--ud-host-text);
+  --ud-host-disabled-bg:#87969e10; --ud-host-disabled-text:var(--ud-host-text);
+  --ud-host-selection-bg:#19867230; --ud-host-selection-text:var(--ud-host-text);
+  --ud-host-success-bg:#19867218; --ud-host-success-text:var(--ud-host-text);
+  --ud-host-info-bg:#87969e12; --ud-host-info-text:var(--ud-host-text);
+  --ud-host-overlay-panel:var(--ud-surface); --ud-host-overlay-text:var(--ud-host-text);
+  --ud-host-overlay-muted:var(--ud-host-text-muted); --ud-host-overlay-border:var(--ud-border-control);
+  --ud-host-font:inherit; --ud-host-font-size:inherit; --ud-host-line-height:1.5;
+  color:var(--ud-text); background:var(--ud-canvas); font:inherit;
+  padding:var(--ud-space-4); border:1px solid var(--ud-border); border-radius:var(--ud-radius-panel);
+}
+/* Host Vuetify variables inherit when available; standalone has explicit defaults. */
+.desktop-root,.desktop-root *,.desktop-root *::before,.desktop-root *::after{box-sizing:border-box}
+.desktop-root h1{font-size:clamp(1.6rem,3vw,2.15rem);margin:0;font-weight:700;line-height:1.2}
+.desktop-root h2{font-size:1rem;font-weight:600;margin:0}
+.desktop-root p{overflow-wrap:anywhere;margin-block:.7rem}
+.desktop-root .help{font-size:.85rem;color:var(--ud-text-muted)}
+.desktop-root nav{display:flex;flex-wrap:wrap;align-items:center;gap:var(--ud-space-2);margin-block:var(--ud-space-3)}
+.desktop-root :is(button,input,select,textarea){font:inherit}
+.desktop-root button{color:var(--ud-action-text);background:var(--ud-action-bg);border:1px solid var(--ud-action-border);border-radius:var(--ud-radius-control);padding:.4rem .7rem;min-height:44px;cursor:pointer;font-size:.85rem}
+.desktop-root button:hover:not(:disabled){color:var(--ud-action-hover-text);background:var(--ud-action-hover-bg)}
+.desktop-root button:active:not(:disabled),.desktop-root button[aria-pressed="true"]{color:var(--ud-selection-text);background:var(--ud-selection-bg)}
+.desktop-root button:disabled{color:var(--ud-disabled-text);background:var(--ud-disabled-bg);border-style:dashed;cursor:default}
+.desktop-root button[aria-busy="true"]{cursor:progress}
+.desktop-root :is(button,input,select,textarea,a,[tabindex]):focus-visible{outline:2px solid var(--ud-focus);outline-offset:3px}
+.desktop-root :is(input:not([type="checkbox"]):not([type="radio"]),select,textarea:not(.xterm-helper-textarea)){color:var(--ud-text);background:var(--ud-surface);border:1px solid var(--ud-border-control);border-radius:var(--ud-radius-control);padding:.6rem;min-width:0;max-width:100%}
+.desktop-root label{font-size:.85rem;line-height:1.5}
+.desktop-root .window-content>section{min-width:0}
+.desktop-root .window-content>section>button{margin:.25rem .25rem .25rem 0}
+.desktop-root .application-library{display:flex;flex-direction:column;gap:.6rem}
+.desktop-root .window-content :is(p,ul){margin-block:.25rem}
+.desktop-root .window-content [role="status"]{padding:.6rem .8rem;border:1px solid var(--ud-border);border-radius:8px;background:var(--ud-info-bg);font-size:.85rem}
+.desktop-root .window-content [role="alert"]{padding:.6rem .8rem;background:var(--ud-danger-bg);border:1px solid var(--ud-border);border-radius:8px}
+.desktop-root .desktop-surface{position:relative;height:clamp(360px,65vh,900px);overflow:hidden;background:var(--ud-surface);border:1px solid var(--ud-border-control);border-radius:0}
+.desktop-root .desktop-window{position:absolute;background:var(--ud-surface);border:1px solid var(--ud-border-control);border-radius:var(--ud-radius-panel);display:flex;flex-direction:column;min-width:0}
+.desktop-root .desktop-window[hidden]{display:none}
+.desktop-root .desktop-window.focused{border-color:var(--ud-focus)}
+.desktop-root .desktop-window>header{display:flex;align-items:center;min-height:36px;border-bottom:1px solid var(--ud-border);background:var(--ud-surface);border-radius:12px 12px 0 0;touch-action:none;flex-shrink:0;cursor:move;padding-inline:.35rem;gap:.25rem}
+.desktop-root .window-title{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;padding:.4rem;font-size:.85rem;font-weight:600}
+/* Compact chrome and positioned shell cells preserve existing geometry/hit targets. */
+.desktop-root .desktop-window>header>button{min-height:28px;min-width:28px;padding:0 .35rem}
+.desktop-root .window-content{padding:var(--ud-space-3);overflow:auto;flex:1;min-height:0;min-width:0}
+.desktop-root .window-content form{display:grid;gap:.6rem;margin-top:.8rem}
+.desktop-root .window-content input:not([type="checkbox"]){width:100%}
+.desktop-root .resize-handle{position:absolute;right:0;bottom:0;touch-action:none;cursor:nwse-resize;padding:0 .3rem;min-height:24px;border-radius:8px 0 12px 0}
+.desktop-root .desktop-taskbar{min-height:44px}
+.desktop-root .reserved-strip{position:absolute;bottom:0;left:0;right:0;height:24px;background:var(--ud-info-bg);border-top:1px solid var(--ud-border);font-size:12px;pointer-events:none}
+.desktop-root .dock-preview{position:absolute;border:3px dashed var(--ud-focus);background:var(--ud-selection-bg);pointer-events:none;z-index:100;color:var(--ud-text)}
+.desktop-root .shell-item{min-height:0;padding:0 .25rem}
+.desktop-root .shell-popup-layer [data-popup]{background:var(--ud-overlay-panel);color:var(--ud-overlay-text);border:1px solid var(--ud-overlay-border);border-radius:12px;padding:.8rem}
+.desktop-root .application-list{list-style:none;padding:0;display:grid;gap:.8rem;grid-template-columns:repeat(auto-fit,minmax(min(100%,16rem),1fr))}
+.desktop-root .application-card{display:flex;flex-direction:column;gap:.6rem;min-width:0;padding:.8rem;border:1px solid var(--ud-border);border-radius:12px;background:var(--ud-surface)}
+.desktop-root .application-card>button{margin-top:auto;align-self:flex-start}
+.desktop-root .application-card strong{font-size:1rem;overflow-wrap:anywhere}
+.desktop-root .application-card details{font-size:.85rem;overflow-wrap:anywhere}
+.desktop-root .application-card summary{cursor:pointer}
+@media(prefers-reduced-motion:reduce){.desktop-root *{scroll-behavior:auto;transition:none;animation:none}}
+@media(forced-colors:active){.desktop-root :is(button,input,select,textarea,.desktop-window,.desktop-surface,.application-card){border-color:CanvasText}.desktop-root :focus-visible{outline-color:Highlight}.desktop-root .desktop-window.focused{border-color:Highlight}}

@@ -1,5 +1,8 @@
 <script setup>
-import {shallowRef, ref, computed, onMounted, onUnmounted, nextTick, onErrorCaptured} from 'vue';
+import {shallowRef, ref, computed, onMounted, onUnmounted, nextTick, onErrorCaptured,provide,watch} from 'vue';
+import {createDesktopCatalog,resolveRegistration,catalogPolicyAvailability} from './desktop-catalog.mjs';
+import {createApplicationDiscovery} from './desktop-application-discovery.mjs';
+import {createConnectorControls} from './desktop-connector-controls.mjs';
 import {createReducer} from './generated/runtime.mjs';
 import wasmUrl from './generated/runtime.wasm?url';
 import {createDesktopController} from './desktop-controller.mjs';
@@ -12,6 +15,9 @@ import {encodeLayout, decodeLayout, createLayoutStorage} from './desktop-layout.
 import {createMosReadHost} from './desktop-mos.mjs';
 import {createPersonalHost} from './desktop-personal.mjs';
 import ShellLayout from './ShellLayout.vue';
+import '../../runtime/design/mos.css';
+import '../../runtime/design/universal.css';
+import '../../runtime/design/mos-desktop.css';
 
 // Only the trusted host may supply this; never infer it from browser UI or a display name.
 const props = defineProps({verifiedStorageScope: {type: String, default: ''}, canPersist: {type: Function, default: () => true}});
@@ -22,7 +28,7 @@ const configs = shallowRef(new Map()), activePage = ref(true), failures = shallo
 const drafts = shallowRef(new Map());
 const abort = new AbortController();
 let controller, observer, gesture, persistence, live = true, saving = false, measured = false, actions = Promise.resolve();
-let geometry, arrangements;
+let geometry, arrangements,connectorPoll;
 const arrangement = shallowRef(null), layoutProjection = shallowRef(null);
 const dockPreview = shallowRef(null);
 const recoverBounds=(...args)=>geometry.recover(...args);
@@ -30,6 +36,27 @@ const previewBounds=(...args)=>geometry.preview(...args);
 const frames = new Map(), descendants = new Map();
 let mosStorage; try {mosStorage = globalThis.localStorage;} catch {}
 const personal=createPersonalHost({storage:mosStorage});
+const catalog=createDesktopCatalog(registrations);
+const catalogSnapshot=shallowRef(catalog.snapshot());
+onUnmounted(catalog.subscribe(value=>catalogSnapshot.value=value));
+const pinned=new Map(),admitted=new Map(registrations.map(r=>[r.definition.id,r]));
+const artifacts=shallowRef(new Map()),managed=new Map(catalog.list().map(d=>[d.id,d]));
+const approvalState=shallowRef(null);
+const connectors=createConnectorControls({personal,catalog,artifacts,managed,approvalState});
+watch(()=>artifacts.value.size,size=>{clearInterval(connectorPoll);connectorPoll=undefined;if(size)connectorPoll=setInterval(()=>{if(activePage.value)connectors.refresh().catch(()=>{artifacts.value=new Map();});},5000);});
+onUnmounted(()=>connectors.dispose());
+const discoveryStatus=ref('Manifest discovery not refreshed');
+const discovery=createApplicationDiscovery({personal,catalog,builtins:()=>[...managed.values()],onStatus:value=>discoveryStatus.value=value});
+onUnmounted(()=>discovery.dispose());
+const catalogService={catalog,discovery,discoveryStatus,artifacts,connectors,availability(entry){const deferred=catalogPolicyAvailability(entry,admitted,snapshot.value?.apps??[]);if(deferred)return deferred;const r=resolveRegistration(entry,registrations);return r?.adapter?r.adapter.availability(catalogService,entry):{code:r?'available':'unavailable',message:entry.id==='stream'?'Existing authenticated personal session; connection checked at attachment':'Trusted installed component'};},
+ async launch(id){const result=await action(async()=>{if(props.verifiedStorageScope&&!props.canPersist())throw Error('Application admission denied');const entry=catalog.resolve(id);if(!entry||catalogService.availability(entry).code!=='available')throw Error('Application unavailable');const r=resolveRegistration(entry,registrations),existing=controller.snapshot.apps.find(a=>a.definitionId===entry.id&&(entry.instancePolicy!=='single-resource'||pinned.get(a.id)?.resourceKey===r.resourceKey));if(existing&&entry.instancePolicy!=='multiple'){const w=controller.snapshot.windows.find(w=>w.appInstanceId===existing.id);await revealArrangedWindow(w.id);}else {
+ if(r.adapter?.admit)r.defaults=await r.adapter.admit(catalogService,entry);
+ if((props.verifiedStorageScope&&!props.canPersist())||catalog.resolve(id)!==entry)throw Error('Application admission changed');
+ if(admitted.has(id)&&!controller.snapshot.apps.some(a=>a.definitionId===id)&&JSON.stringify(admitted.get(id).definition)!==JSON.stringify(r.definition)){await accepted(controller.dispatch('unregister_definition',id));admitted.delete(id);}
+ if(!admitted.has(id)){await accepted(controller.dispatch('register_definition',r.definition));admitted.set(id,r);}
+ const created=await launchApp(controller,id,undefined,{registration:r});pinned.set(created.appId,r);configs.value=new Map(configs.value).set(created.appId,r.defaults);
+ }return true;});if(result!==true)throw result?.error??Error('Application unavailable');}};
+provide('applicationCatalog',catalogService);
 onUnmounted(()=>personal.dispose());
 const host = Object.freeze({personal,rememberTerminal(instanceId,reference){
   if(!live || !controller?.snapshot.apps.some(a=>a.id===instanceId&&a.definitionId==='terminal'))return;
@@ -44,7 +71,7 @@ const windows = computed(() => {
   return s?.workspaces[0] ? s.workspaces[0].windowIds.map(id => s.windows.find(w => w.id === id)) : [];
 });
 const focused = computed(() => snapshot.value?.workspaces[0]?.focusedWindowId);
-const registration = window => registrations.find(r => r.definition.id === snapshot.value.apps.find(a => a.id === window.appInstanceId)?.definitionId);
+const registration = window => pinned.get(window.appInstanceId)??admitted.get(snapshot.value.apps.find(a => a.id === window.appInstanceId)?.definitionId);
 const shown = window => window.visible && window.presentation.kind !== 'MINIMIZED'
   && (layoutProjection.value?.views.find(v=>v.view===window.id)?.active ?? true);
 const config = window => configs.value.get(window.appInstanceId) ?? registration(window).defaults;
@@ -151,7 +178,10 @@ function updateConfig(window, event) {
 }
 async function close(id) {
   const window = controller.snapshot.windows.find(w => w.id === id);
+  const definitionId=window&&controller.snapshot.apps.find(a=>a.id===window.appInstanceId)?.definitionId;
   await closeWindow(controller, id);
+  if(window)pinned.delete(window.appInstanceId);
+  if(definitionId&&!catalog.resolve(definitionId)&&!controller.snapshot.apps.some(a=>a.definitionId===definitionId)){await accepted(controller.dispatch('unregister_definition',definitionId));admitted.delete(definitionId);}
   descendants.delete(id);
   if (window) {const next = new Map(configs.value);next.delete(window.appInstanceId);configs.value = next;}
   if(window){const next=new Map(drafts.value);next.delete(window.appInstanceId);drafts.value=next;}
@@ -245,12 +275,16 @@ onMounted(async () => {
         await nextTick(); if (!live) return; measureArea();
         const text = persistence.read();
         if (text !== null) {
-          const layout = decodeLayout(text, props.verifiedStorageScope, registrations), mapping = new Map();
+          const raw=text.length<=65536?JSON.parse(text):null;
+          if(raw?.windows?.some(w=>!admitted.has(w.definitionId)))await discovery.refresh();
+          const available=catalog.list().map(d=>resolveRegistration(d,registrations)).filter(Boolean);
+          const layout = decodeLayout(text, props.verifiedStorageScope, available), mapping = new Map();
           for (const saved of layout.windows) {
             if (!live) return;
-            const definition = registrations.find(r => r.definition.id === saved.definitionId).definition;
+            const r=available.find(r=>r.definition.id===saved.definitionId),definition=r.definition;
+            if(!admitted.has(saved.definitionId)){await accepted(controller.dispatch('register_definition',definition));admitted.set(saved.definitionId,r);}
             const bounds = measured ? recoverBounds(saved.bounds, definition.minimum_size, area.value) : saved.bounds;
-            const created = await launchApp(controller, saved.definitionId, bounds, {focus: false});
+            const created = await launchApp(controller, saved.definitionId, bounds, {focus: false,registration:r});pinned.set(created.appId,r);
             configs.value = new Map(configs.value).set(created.appId, saved.config); mapping.set(saved.key, created.windowId);
             await accepted(controller.dispatch('set_presentation', {window_id: created.windowId, presentation: saved.presentation}));
             await accepted(controller.dispatch('set_visibility', {window_id: created.windowId, visible: saved.visible}));
@@ -258,7 +292,8 @@ onMounted(async () => {
           if(layout.arrangement)await applyArrangement(arrangements.restore(layout.arrangement,mapping));
           const id = mapping.get(layout.focused), target = controller.snapshot.windows.find(w => w.id === id);
           if (target && shown(target)) await accepted(controller.dispatch('focus_window', id));
-          layoutStatus.value = layout.skipped.length ? `Layout recovered: ${layout.skipped.join('; ')}` : 'Layout restored.';
+          if(layout.skipped.length)throw Error('Unavailable application recovery; original retained');
+          layoutStatus.value = 'Layout restored.';
         } else layoutStatus.value = 'Layout persistence ready.';
         saving = true;
       } catch {layoutStatus.value = 'Layout recovery failed. Original record preserved; this session will not overwrite it.';}
@@ -272,14 +307,14 @@ onMounted(async () => {
   } catch (error) {if (live) status.value = `Runtime unavailable: ${error.message}`;}
 });
 onUnmounted(() => {
-  live = false; abort.abort(); endGesture(); observer?.disconnect(); controller?.dispose();
+  live = false; abort.abort(); clearInterval(connectorPoll);endGesture(); observer?.disconnect(); controller?.dispose();
   persistence?.dispose();
   document.removeEventListener('visibilitychange', visibility); frames.clear(); descendants.clear();
 });
 </script>
 
 <template>
-  <section class="desktop-root" aria-label="MOS Desktop" @keydown="keydown">
+  <section class="desktop-root ud-root" data-theme="mos" aria-label="MOS Desktop" @keydown="keydown">
     <h1>MOS Desktop</h1>
     <p class="help">Local shell integration candidate — existing windows and sessions remain host-owned.</p>
     <nav aria-label="Layout arrangement">
@@ -294,7 +329,7 @@ onUnmounted(() => {
     <p role="status">{{ status }}</p>
     <p role="status">{{ layoutStatus }} <button v-if="canRetrySave" @click="action(() => { saveLayout(); persistence.flush(); }, false, false)">Retry autosave</button></p>
     <p class="help">Keyboard: Alt+Shift+Left/Right switches windows; Alt+Shift+M minimizes; Alt+Shift+X closes. Escape cancels a drag.</p>
-    <ShellLayout v-if="ready" :mount="surface" :applications="registrations.map(r=>r.definition)" :scope="verifiedStorageScope" :can-persist="canPersist" :launch="shellLaunch" />
+    <ShellLayout v-if="ready" :mount="surface" :applications="registrations.filter(r=>r.shell).map(r=>r.definition)" :catalog="catalogService" :scope="verifiedStorageScope" :can-persist="canPersist" :launch="shellLaunch" />
     <div ref="surface" class="desktop-surface" tabindex="-1" aria-label="Desktop workspace">
       <article v-for="(window, index) in windows" :key="window.id" :ref="el => el ? frames.set(window.id, el) : frames.delete(window.id)"
         :data-window-id="window.id" :hidden="!shown(window)" :inert="shown(window) ? undefined : ''"
@@ -325,12 +360,12 @@ onUnmounted(() => {
           @pointerdown.stop="startGesture(window, 'resize', $event)" @pointermove="moveGesture" @pointerup="endGesture($event, true)"
           @pointercancel="endGesture($event)" @lostpointercapture="endGesture($event)">↘</button>
       </article>
-      <div class="reserved-strip" aria-label="Reserved shell strip">SDK reserved shell strip — 24px</div>
+      <div class="reserved-strip" aria-label="Reserved shell strip"></div>
       <div v-if="dockPreview" class="dock-preview" role="status" :style="{left:`${dockPreview.bounds.x}px`,top:`${dockPreview.bounds.y}px`,width:`${dockPreview.bounds.width}px`,height:`${dockPreview.bounds.height}px`}">Dock preview — Apply or Escape to cancel</div>
     </div>
     <nav class="desktop-taskbar" aria-label="Applications">
-      <button v-for="app in registrations" :key="app.definition.id" :disabled="!ready"
-        @click="action(() => launchApp(controller, app.definition.id))">New {{ app.definition.display_name }}</button>
+      <button v-for="app in catalogSnapshot.definitions" :key="app.id" :disabled="!ready || catalogService.availability(app).code!=='available'"
+        @click="catalogService.launch(app.id).catch(report)">New {{ app.label }}</button>
       <span aria-hidden="true">|</span>
       <button v-for="window in windows" :key="window.id" :aria-pressed="focused === window.id"
         @click="activateWindow(window.id)">{{ window.title }}{{ window.presentation.kind === 'MINIMIZED' ? ' (minimized)' : '' }}</button>
@@ -339,19 +374,5 @@ onUnmounted(() => {
 </template>
 
 <style scoped>
-.desktop-root{color:#eee;background:#17212d;padding:12px;font-family:system-ui,sans-serif}
-h1{font-size:1.3rem;margin:0}.help{font-size:.8rem;color:#c6d2e2}
-.desktop-surface{position:relative;height:clamp(360px,65vh,900px);overflow:hidden;background:#101820;border:1px solid #6b819a}
-.desktop-window{position:absolute;box-sizing:border-box;background:#202c3c;border:1px solid #73849a;box-shadow:0 4px 16px #0008;display:flex;flex-direction:column}
-.desktop-window[hidden]{display:none}.desktop-window.focused{border-color:#a5ceff}
-header{display:flex;min-height:34px;background:#35465c;touch-action:none;flex-shrink:0;cursor:move}
-button,input{font:inherit}button{background:#2c3d52;color:#fff;border:1px solid #899cb4;padding:5px 8px;cursor:pointer}
-button:focus-visible,input:focus-visible{outline:2px solid #f8d675;outline-offset:-2px}
-.window-title{flex:1;min-width:0;text-align:left;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;border:0;background:transparent;cursor:move;padding:5px}
-.window-content{padding:12px;overflow:auto;flex:1;min-height:0}output{display:block;font-size:1.5rem}
-form{display:grid;gap:6px;margin-top:12px}label{display:block;font-size:.85rem}input:not([type=checkbox]){box-sizing:border-box;width:100%}
-.resize-handle{position:absolute;right:0;bottom:0;touch-action:none;cursor:nwse-resize;padding:0 4px}
-.desktop-taskbar{display:flex;gap:6px;align-items:center;flex-wrap:wrap;min-height:44px;padding-top:8px}
-.reserved-strip{position:absolute;bottom:0;left:0;right:0;height:24px;box-sizing:border-box;background:#35465c;font-size:12px;pointer-events:none}
-.dock-preview{position:absolute;box-sizing:border-box;border:3px dashed #f8d675;background:#f8d67522;pointer-events:none;z-index:100;color:#fff}
+/* Presentation lives in the opt-in, boundary-scoped design specimen. */
 </style>

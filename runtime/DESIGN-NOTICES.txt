@@ -1,0 +1,6 @@
+Optional presentation resources from the owner's Universal Design Pack1.0.0.
+Upstream themes/mos.css and adapters/universal.css are namespace-projected only;
+mos-desktop.css is an authored MOS consumer specimen. identity.json records exact
+distributed asset hashes and the transformation. No donor application source,
+tooling, third-party font, credentials or SDK implementation is distributed.
+This resource inclusion does not grant a public source license to the private SDK.

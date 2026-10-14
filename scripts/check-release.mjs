@@ -5,15 +5,17 @@ import {execFileSync} from 'node:child_process';
 import config from '../page/plugin.config.js';
 const root = new URL('../',import.meta.url);
 const pkg = JSON.parse(readFileSync(new URL('page/package.json',root)));
-assert.notEqual(pkg.mosDesktopReleaseReady, false, 'Source candidate is not approved for packaging');
+if(!process.argv.includes('--source-only'))assert.notEqual(pkg.mosDesktopReleaseReady, false, 'Source candidate is not approved for packaging');
 const lock = JSON.parse(readFileSync(new URL('page/package-lock.json',root)));
 assert.match(config.version,/^\d+\.\d+\.\d+$/);
 assert.equal(pkg.version,config.version);assert.equal(lock.version,config.version);assert.equal(lock.packages[''].version,config.version);
 if(process.env.RELEASE_TAG) assert.equal(process.env.RELEASE_TAG,config.version);
-const files = execFileSync('git',['ls-files'],{encoding:'utf8'}).trim().split('\n');
+const catalogFiles=['APPLICATION-CATALOG.md','backend/connectors.py','backend/test_connectors.py','backend/test_home_read_bounds.py','runtime/catalog.mjs','runtime/catalog-identity.json','runtime/content.mjs','runtime/content-bootstrap.mjs','runtime/CATALOG-NOTICES.txt','page/src/ApplicationLibrary.vue','page/src/ConnectorManager.vue','page/src/InstalledContent.vue','page/src/PersonalWeb.vue','page/src/desktop-catalog.mjs','page/src/desktop-application-discovery.mjs','page/src/desktop-connector-controls.mjs','page/src/desktop-installed-content.mjs','page/src/desktop-stream-content.mjs','page/src/desktop-text-content.mjs','page/src/desktop-web-content.mjs','tests/desktop-catalog.test.mjs','tests/connector-fixture.py'];
+const files = [...new Set([...execFileSync('git',['ls-files'],{encoding:'utf8'}).trim().split('\n'),...catalogFiles])];
+const designFiles=['DESIGN-INTEGRATION.md','runtime/DESIGN-NOTICES.txt','runtime/design/mos.css','runtime/design/universal.css','runtime/design/mos-desktop.css','runtime/design/identity.json','tests/design-ui.cjs'];
 const allowed = /^(\.github\/workflows\/build-plugin\.yml|\.gitattributes|\.gitignore|README\.md|package(?:-lock)?\.json|playwright\.config\.cjs|backend\/(README\.md|requirements\.txt|backup-home\.sh|mos-desktop(-stream)?-agent\.service|mos-desktop-stream\.service|run-(stream|wayland)-session\.sh|(home|terminal|service|streaming|preflight|test_backend|test_streaming)\.py)|runtime\/((runtime|layout|editor|shell)\.(mjs|wasm)|identity\.json|(layout|editor|shell)-identity\.json|(THIRD-PARTY|LAYOUT|XTERM|EDITOR|SHELL)-NOTICES\.txt)|page\/(package(?:-lock)?\.json|plugin\.config\.js|vite\.config\.js|(test-host|shell-test-host|standalone)\.html|src\/(standalone\.mjs|Plugin\.vue|DesktopShell\.vue|ShellLayout\.vue|desktop-shell-(storage|template)\.mjs|Personal(Home|Terminal|Editor|Stream)\.vue|runtime-canary\.mjs|desktop-(apps|arrangement|controller|geometry|layout|profile|mos|lxc|personal|sdk-layout)\.mjs))|scripts\/(stage-runtime|prepare-components|check-built|package-local|check-release|make-local-dropin)\.mjs|scripts\/(make-source\.py|probe-playwright\.cjs)|tests\/(shell-ui\.cjs|desktop-shell-storage\.test\.mjs|(public-runtime|desktop-(apps|arrangement|controller|geometry|layout|profile|mos|lxc|personal|sdk-layout))\.test\.mjs|editor-host-integration\.mjs|personal-(ui|live|nested-live)\.cjs|e2e\/(README\.md|(auth\.setup|environment|isolation\.spec|layout\.spec|stream\.spec)\.cjs)))$/;
 for(const file of files) {
-  assert(allowed.test(file),`Unreviewed public file: ${file}`);
+  assert(allowed.test(file)||catalogFiles.includes(file)||designFiles.includes(file),`Unreviewed public file: ${file}`);
   assert(!/[HC]:[\\/]\s*(?:code|Users)|\/home\/matt\/|gh[pousr]_[A-Za-z0-9]{20}|-----BEGIN (?:RSA |EC |OPENSSH )?PRIVATE KEY-----/.test(readFileSync(new URL(file,root)).toString('latin1')),file);
 }
 if(process.argv.includes('--artifacts')) {

@@ -31,6 +31,10 @@ copyFileSync(path.join(root,'runtime/LAYOUT-NOTICES.txt'),path.join(docs,'LAYOUT
 copyFileSync(path.join(root,'runtime/layout-identity.json'),path.join(docs,'layout-provenance.json'));
 copyFileSync(path.join(root,'runtime/SHELL-NOTICES.txt'),path.join(docs,'SHELL-NOTICES.txt'));
 copyFileSync(path.join(root,'runtime/shell-identity.json'),path.join(docs,'shell-provenance.json'));
+copyFileSync(path.join(root,'runtime/CATALOG-NOTICES.txt'),path.join(docs,'CATALOG-NOTICES.txt'));
+copyFileSync(path.join(root,'runtime/catalog-identity.json'),path.join(docs,'catalog-provenance.json'));
+copyFileSync(path.join(root,'runtime/DESIGN-NOTICES.txt'),path.join(docs,'DESIGN-NOTICES.txt'));
+copyFileSync(path.join(root,'runtime/design/identity.json'),path.join(docs,'design-provenance.json'));
 copyFileSync(path.join(root,'runtime/XTERM-NOTICES.txt'),path.join(docs,'XTERM-NOTICES.txt'));
 copyFileSync(path.join(root,'runtime/EDITOR-NOTICES.txt'),path.join(docs,'EDITOR-NOTICES.txt'));
 copyFileSync(path.join(root,'runtime/editor-identity.json'),path.join(docs,'editor-provenance.json'));

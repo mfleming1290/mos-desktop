@@ -2,7 +2,7 @@
   "name": "mos-desktop-page",
   "version": "0.2.15",
   "private": true,
-  "mosDesktopReleaseReady": true,
+  "mosDesktopReleaseReady": false,
   "type": "module",
   "scripts": {
     "prepare:runtime": "node ../scripts/stage-runtime.mjs",

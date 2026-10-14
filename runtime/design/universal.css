@@ -1,0 +1,39 @@
+/* New optional web adapter. Theme must be loaded separately. No behavior. */
+.desktop-root.ud-root { color:var(--ud-text); background:var(--ud-canvas); font-family:var(--ud-font); font-size:var(--ud-font-size); line-height:var(--ud-line-height); }
+.desktop-root.ud-root, .desktop-root.ud-root *, .desktop-root.ud-root *::before, .desktop-root.ud-root *::after { box-sizing:border-box; }
+.desktop-root .ud-stack { display:flex; flex-direction:column; gap:var(--ud-gap,var(--ud-space-3)); min-width:0; }
+.desktop-root .ud-inline { display:flex; flex-wrap:wrap; align-items:center; gap:var(--ud-gap,var(--ud-space-2)); min-width:0; }
+.desktop-root .ud-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(min(100%,16rem),1fr)); gap:var(--ud-space-3); }
+.desktop-root .ud-split { display:grid; grid-template-columns:minmax(0,1fr) minmax(0,2fr); gap:var(--ud-space-3); }
+.desktop-root .ud-grid > *, .desktop-root .ud-split > * { min-width:0; }
+.desktop-root .ud-scroll { min-width:0; min-height:0; overflow:auto; }
+.desktop-root .ud-panel { background:var(--ud-surface); border:var(--ud-border-width) solid var(--ud-border); border-radius:var(--ud-radius-panel); padding:var(--ud-space-3); }
+.desktop-root.ud-root h1, .desktop-root.ud-root h2, .desktop-root.ud-root h3 { line-height:1.2; overflow-wrap:anywhere; }
+.desktop-root.ud-root p { overflow-wrap:anywhere; }
+.desktop-root .ud-muted { color:var(--ud-text-muted); }
+.desktop-root .ud-button { font:inherit; min-height:var(--ud-control-min-size); color:var(--ud-action-text); background:var(--ud-action-bg); border:var(--ud-border-width) solid var(--ud-action-border); border-radius:var(--ud-radius-control); padding:var(--ud-space-1) var(--ud-space-3); cursor:pointer; }
+.desktop-root .ud-button:hover:not(:disabled) { background:var(--ud-action-hover-bg); color:var(--ud-action-hover-text); }
+.desktop-root .ud-button:active:not(:disabled) { background:var(--ud-action-active-bg); color:var(--ud-action-active-text); }
+.desktop-root .ud-button:disabled { background:var(--ud-disabled-bg); color:var(--ud-disabled-text); cursor:default; }
+.desktop-root .ud-button[aria-busy=true] { cursor:progress; }
+.desktop-root.ud-root :is(button,a,input,select,textarea,[tabindex]):focus-visible { outline:var(--ud-focus-width) solid var(--ud-focus); outline-offset:var(--ud-focus-offset); }
+.desktop-root .ud-field { display:flex; flex-direction:column; gap:var(--ud-space-1); }
+.desktop-root .ud-input { font:inherit; color:var(--ud-text); background:var(--ud-surface); border:var(--ud-border-width) solid var(--ud-border-control); border-radius:var(--ud-radius-control); padding:var(--ud-space-2); min-height:var(--ud-control-min-size); min-width:0; }
+.desktop-root .ud-input[aria-invalid=true] { border-color:var(--ud-danger-text); }
+.desktop-root .ud-notice { padding:var(--ud-space-3); border-radius:var(--ud-radius-control); color:var(--ud-info-text); background:var(--ud-info-bg); }
+.desktop-root .ud-notice[data-tone=warning] { color:var(--ud-warning-text); background:var(--ud-warning-bg); }
+.desktop-root .ud-notice[data-tone=danger] { color:var(--ud-danger-text); background:var(--ud-danger-bg); }
+.desktop-root .ud-notice[data-tone=success] { color:var(--ud-success-text); background:var(--ud-success-bg); }
+.desktop-root .ud-selected { color:var(--ud-selection-text); background:var(--ud-selection-bg); }
+.desktop-root .ud-table { width:100%; border-collapse:collapse; }
+.desktop-root .ud-table th, .desktop-root .ud-table td { text-align:start; padding:var(--ud-space-2); border-bottom:var(--ud-border-width) solid var(--ud-border); }
+.desktop-root .ud-row { padding-block:var(--ud-space-2); border-bottom:var(--ud-border-width) solid var(--ud-border); }
+/* New educational threshold; application owns adaptation. */
+@media(max-width:42rem) { .desktop-root .ud-split { grid-template-columns:minmax(0,1fr); } }
+@media(prefers-reduced-motion:reduce) { .desktop-root.ud-root *, .desktop-root.ud-root *::before, .desktop-root.ud-root *::after { scroll-behavior:auto; } }
+@media(forced-colors:active) { .desktop-root .ud-button,.desktop-root .ud-input,.desktop-root .ud-panel { border-color:CanvasText; } .desktop-root.ud-root :focus-visible { outline-color:Highlight; } }
+
+/* Links preserve underline and validated accent contrast in either theme. */
+.desktop-root.ud-root a, .desktop-root.ud-root a:visited { color:var(--ud-accent); text-underline-offset:.15em; }
+/* MOS accent is not approved small text; inherit the verified host foreground. */
+.desktop-root[data-theme="mos"] a, .desktop-root[data-theme="mos"] a:visited { color:inherit; }

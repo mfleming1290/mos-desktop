@@ -4,7 +4,7 @@ import {createLayout,createShellActions,createShellProfile,parseShellDocument} f
 import wasmUrl from '../../runtime/shell.wasm?url';
 import {shellTemplate} from './desktop-shell-template.mjs';
 import {createShellStorage} from './desktop-shell-storage.mjs';
-const props=defineProps({mount:Object,applications:Array,scope:String,canPersist:Function,launch:Function});
+const props=defineProps({mount:Object,applications:Array,catalog:Object,scope:String,canPersist:Function,launch:Function});
 const layer=ref(),editButton=ref(),transfer=ref(),message=ref('Loading shell…'),documentValue=shallowRef(null),projection=shallowRef(null),locked=ref(true),blocked=ref(false),text=ref('');
 let profile,storage,layout,actions,observer,live=true,gesture,importBlocked=false,unbind=[];
 const nodes=new Map(),abort=new AbortController();
@@ -31,7 +31,7 @@ async function invoke(request,signal){
  const node=window.document.createElement('section');node.className='mos-shell-popup';
  if(request.action==='start'){
   const heading=window.document.createElement('h2');heading.textContent='Applications';node.append(heading);
-  for(const app of props.applications){const button=window.document.createElement('button');button.textContent=app.display_name;button.onclick=async()=>{try{if(!admit())throw Error('Action denied');await props.launch(app.id,null,signal);actions.close();}catch(e){message.value=e.message;}};node.append(button);}
+  for(const app of props.catalog?.catalog.list()??props.applications){const button=window.document.createElement('button');button.textContent=app.label??app.display_name;const support=props.catalog?.availability(app);button.disabled=support&&support.code!=='available';button.title=support?.message??'';button.onclick=async()=>{try{if(!admit())throw Error('Action denied');if(props.applications.some(a=>a.id===app.id))await props.launch(app.id,null,signal);else await props.catalog.launch(app.id);actions.close();}catch(e){message.value=e.message;}};node.append(button);}
  }else if(request.action==='calendar'){
   const heading=window.document.createElement('h2');heading.textContent=new Date().toLocaleDateString();node.append(heading);const input=window.document.createElement('input');input.type='date';input.setAttribute('aria-label','Calendar date');node.append(input);
  }else if(request.action==='context'){
@@ -79,5 +79,5 @@ onUnmounted(()=>{live=false;abort.abort();observer?.disconnect();props.mount.rem
  </Teleport>
 </template>
 <style scoped>
-nav{display:flex;gap:6px;flex-wrap:wrap;align-items:center}textarea{width:100%;min-width:300px;height:100px}output{font-size:.85rem}.shell-item{position:absolute;box-sizing:border-box;padding:0 4px;z-index:0;touch-action:none}.shell-item[data-shell-item=start],.shell-item[data-shell-item=calendar],.shell-item[data-shell-item=context]{z-index:1000}.shell-popup-layer{position:absolute;inset:0;pointer-events:none;z-index:10000}.shell-popup-layer :deep([data-popup]){pointer-events:auto;box-sizing:border-box;background:#202c3c;color:white;border:1px solid #899cb4;padding:8px;overflow:auto}.shell-popup-layer :deep(button){display:block;margin:4px;padding:5px}.shell-popup-layer :deep(input){font:inherit}
+nav{display:flex;gap:6px;flex-wrap:wrap;align-items:center}textarea{width:100%;min-width:0;height:100px}output{font-size:.85rem}.shell-item{position:absolute;box-sizing:border-box;padding:0 4px;z-index:0;touch-action:none}.shell-item[data-shell-item=start],.shell-item[data-shell-item=calendar],.shell-item[data-shell-item=context]{z-index:1000}.shell-popup-layer{position:absolute;inset:0;pointer-events:none;z-index:10000}.shell-popup-layer :deep([data-popup]){pointer-events:auto;box-sizing:border-box;overflow:auto}.shell-popup-layer :deep(button){display:block;margin:4px}.shell-popup-layer :deep(input){font:inherit}
 </style>

@@ -1,0 +1,10 @@
+{
+  "designVersion": "1.0.0",
+  "source": "Battlemoon optional design resources; authored MOS presentation specimen",
+  "transform": "namespace-upstream-selectors-to-desktop-root-v1",
+  "assets": {
+    "mos.css": "3b56159bba51db6456f75dc25dcfabad1e53182cb9eb5fc1d3326b5b646acd5c",
+    "universal.css": "9d8d87b881d5110f4fe3036c0c8131d4c5c1ee8b98ccdf3770d276966f2f5e3f",
+    "mos-desktop.css": "905438bedf72a0061d2f00b655f8c0ce620e795e0ee07ae3a71463778c0eb7ca"
+  }
+}
