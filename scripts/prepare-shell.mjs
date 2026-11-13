@@ -1,0 +1,22 @@
+// Private local candidate staging, never a public-source SDK fetch or production pin.
+import {build} from '../page/node_modules/esbuild/lib/main.js';
+import {readFileSync,writeFileSync} from 'node:fs';
+import {createHash} from 'node:crypto';
+import {execFileSync} from 'node:child_process';
+import path from 'node:path';
+const sdk=path.resolve(process.argv[2]??'../battlemoon-desktop'),out=path.resolve('runtime');
+const revision=execFileSync('git',['rev-parse','HEAD'],{cwd:sdk,encoding:'utf8'}).trim();
+if(revision!=='345506ce0daffde227fca8866abb86e6cee14fb4')throw Error('Review SDK source revision before staging');
+const target=path.resolve('.cache/shell-target');
+execFileSync('cargo',['build','--manifest-path','rust/layout/Cargo.toml','--lib','--target','wasm32-unknown-unknown','--release','--locked'],{cwd:sdk,stdio:'inherit',env:{...process.env,CARGO_TARGET_DIR:target,RUSTFLAGS:`--remap-path-prefix=${sdk}=/sdk --remap-path-prefix=${process.env.USERPROFILE}=/build`}});
+const hash=b=>createHash('sha256').update(b).digest('hex');
+const entry=['layout.ts','shell-dom.ts','shell-profile.ts'].map(p=>`export * from ${JSON.stringify(path.join(sdk,'typescript',p))};`).join('\n');
+const result=await build({stdin:{contents:entry,resolveDir:sdk,sourcefile:'shell-entry.mjs'},bundle:true,format:'esm',minify:true,sourcemap:false,write:false});
+const wasm=readFileSync(path.join(target,'wasm32-unknown-unknown/release/battlemoon_layout.wasm'));
+if(WebAssembly.Module.imports(new WebAssembly.Module(wasm)).length)throw Error('Imported effects prohibited');
+writeFileSync(path.join(out,'shell.wasm'),wasm);writeFileSync(path.join(out,'shell.mjs'),result.outputFiles[0].contents);
+const notices=readFileSync(path.join(out,'LAYOUT-NOTICES.txt'));
+writeFileSync(path.join(out,'SHELL-NOTICES.txt'),notices);
+const source=['typescript/layout.ts','typescript/shell-dom.ts','typescript/shell-profile.ts','rust/layout/src/shell.rs','rust/layout/src/bridge.rs','rust/layout/src/lib.rs','rust/layout/Cargo.toml','rust/layout/Cargo.lock'];
+writeFileSync(path.join(out,'shell-identity.json'),JSON.stringify({sourceRevision:revision,localIntegrationOnly:true,features:[],sourceAssets:Object.fromEntries(source.map(p=>[p,hash(readFileSync(path.join(sdk,p)))])),assets:Object.fromEntries(['shell.wasm','shell.mjs','SHELL-NOTICES.txt'].map(p=>[p,hash(readFileSync(path.join(out,p)))]))},null,2)+'\n');
+console.log('Staged independent local shell assets; existing runtime/layout/production pins untouched');
